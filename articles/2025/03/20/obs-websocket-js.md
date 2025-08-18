@@ -1,18 +1,8 @@
----
-title: "obs-websokcet-jsを使ってOBSと疎通をとる" # 記事のタイトルを設定してください
-emoji: "🎬" # 記事のアイコンとして使用する絵文字を選択してください
-type: "tech" # tech: 技術記事 / idea: アイデア記事
-topics: ["obs", "websocket", "javascript", "streaming"] # タグを追加してください（例：["zenn", "markdown", "programming"]）
-published: false # true: 公開記事 / false: 下書き
----
-
 ## はじめに
 
 配信やスクリーンキャプチャなどで広く使われているOBS Studio（Open Broadcaster Software）は、多くのクリエイターにとって必須のツールとなっています。OBSを外部から制御できれば、配信の自動化やカスタムコントロールの作成など、様々な可能性が広がります。
 
 本記事では、OBSとWebSocketを使った連携方法、特に「obs-websocket-js」ライブラリを使用してJavaScriptからOBSを制御する方法について解説します。
-
-## 本文
 
 ### OBSとは
 
@@ -185,4 +175,3 @@ obs-websocket-jsを使うことで、JavaScriptから簡単にOBSを操作でき
 WebSocketを直接使う方法もありますが、obs-websocket-jsを利用することでより簡潔なコードで開発できるため、特にJavaScriptでの開発におすすめです。
 
 余談ですが、筆者はobs-websocket-jsのドキュメントのタイポを修正してコントリビュートしており、ライブラリのコントリビューターとして名を連ねています（笑）。オープンソースへの貢献は、タイポの修正のような小さなことからでも始められるということを付け加えておきたいと思います。
-```
