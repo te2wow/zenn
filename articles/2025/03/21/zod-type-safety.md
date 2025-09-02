@@ -86,6 +86,12 @@ type User = z.infer<typeof UserSchema>;
 
 async function fetchUser(id: string): Promise<User> {
   const response = await fetch(`/api/users/${id}`);
+  
+  // HTTP エラーチェック
+  if (!response.ok) {
+    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+  }
+  
   const data = await response.json();
   
   // ランタイムでデータを検証
@@ -135,7 +141,7 @@ const ConfigSchema = z.object({
     name: z.string().min(1),
   }),
   features: z.array(z.string()),
-});
+}).strict(); // 想定外のキーはエラーにして、タイポ混入を即時検知
 
 type Config = z.infer<typeof ConfigSchema>;
 
@@ -260,15 +266,33 @@ function validateUser(data: unknown): UserData {
 }
 ```
 
+### superRefineで複雑な相関バリデーション
+
+複数フィールドの相関チェックや、エラーの結び付け先を制御したい場合は`superRefine`を使います：
+
+```typescript
+const PasswordSchema = z.object({
+  password: z.string().min(8),
+  confirmPassword: z.string(),
+}).superRefine((data, ctx) => {
+  if (data.password !== data.confirmPassword) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "パスワードが一致しません",
+      path: ["confirmPassword"], // エラーを特定フィールドに結び付け
+    });
+  }
+});
+```
+
 ## transformでデータ変換
 
 `transform`メソッドは、バリデーション成功後にデータを別の形に変換する機能です。単なる型キャストではなく、実際のデータ操作を伴います。
 
 ### transformの特徴
 
-1. **パイプライン処理**：複数のtransformを連鎖させて段階的に変換可能
-2. **型安全性**：変換後の型も正しく推論される
-3. **エラーハンドリング**：変換中にエラーが発生した場合も適切に処理
+- **パイプライン処理**：複数のtransformを連鎖させて段階的に変換可能
+- **型安全性**：変換後の型も正しく推論される
 
 ```typescript
 // 文字列 → 数値 → 文字列の変換パイプライン
@@ -279,6 +303,20 @@ const schema = z.string()
 
 // 使用例
 schema.parse("123"); // "ID: 0123"
+```
+
+### coerceとpipeの使い分け
+
+より安全な型変換には`z.coerce`や`pipe`を活用できます：
+
+```typescript
+// coerce: 自動型変換（寛容）
+const coerceSchema = z.coerce.number(); // "123" → 123に自動変換
+
+// pipe: 段階的な変換（厳密）
+const pipeSchema = z.string()
+  .transform(Number)
+  .pipe(z.number().int()); // 整数のみ受け入れ
 ```
 
 `as`では型変換しかできませんが、Zodなら実際のデータ変換も同時に行えます。
@@ -371,87 +409,43 @@ function processApiResponse(data: unknown): User | null {
 }
 ```
 
-### safeParseの実践例
+## まだ使っていい `as` - as const と satisfies
+
+記事では`as`を避ける方法を紹介しましたが、以下の`as`は安全で有用です：
+
+### as const - リテラル型の固定
 
 ```typescript
-const ApiResponseSchema = z.object({
-  users: z.array(UserSchema),
-  total: z.number(),
-});
+// リテラル型を固定して型安全性を高める
+const statusCodes = [200, 404, 500] as const;
+type StatusCode = typeof statusCodes[number]; // 200 | 404 | 500
+```
 
-type ApiResponse = z.infer<typeof ApiResponseSchema>;
+### satisfies - 型適合性チェック
 
-async function fetchUsers(): Promise<ApiResponse | null> {
-  const response = await fetch("/api/users");
-  const data = await response.json();
-  
-  const result = ApiResponseSchema.safeParse(data);
-  
-  if (result.success) {
-    return result.data; // 型安全なApiResponse
-  }
-  
-  // エラーログを出力して null を返す
-  console.error("API応答の形式が不正です:");
-  result.error.errors.forEach(err => {
-    console.error(`- ${err.path.join(".")}: ${err.message}`);
-  });
-  
-  return null;
-}
+```typescript
+// オブジェクトリテラルの型適合性をチェック
+const config = {
+  apiUrl: "https://api.example.com",
+  timeout: 5000,
+} satisfies { apiUrl: string; timeout: number };
+```
 
-// 使用例
-const users = await fetchUsers();
-if (users) {
-  console.log(`取得したユーザー数: ${users.total}`);
-  users.users.forEach(user => {
-    console.log(user.name); // 型安全にアクセス可能
-  });
-}
+これらは実行時の安全性を損なわない型レベルの操作なので、積極的に活用できます。
+
+## パフォーマンス考慮事項
+
+巨大なレスポンスで毎回フルスキーマ検証するとコストがかかります：
+
+```typescript
+// 必要な部分だけ検証
+const partialSchema = FullSchema.pick({ id: true, name: true });
+
+// 取得層で検証済みなら以降は信頼する設計も有効
 ```
 
 ## まとめ
-
-## パフォーマンスとベストプラクティス
-
-### スキーマの再利用
-
-同じスキーマを何度も作成するのではなく、モジュール化して再利用することが重要です：
-
-```typescript
-// 共通スキーマ
-export const EmailSchema = z.string().email();
-export const IdSchema = z.number().positive();
-
-// 他のスキーマで再利用
-const UserSchema = z.object({
-  id: IdSchema,
-  email: EmailSchema,
-  name: z.string().min(1),
-});
-```
-
-### エラーメッセージのカスタマイズ
-
-Zodでは詳細なエラーメッセージを設定できます：
-
-```typescript
-const schema = z.object({
-  password: z.string()
-    .min(8, "パスワードは8文字以上である必要があります")
-    .regex(/[A-Z]/, "大文字を含む必要があります")
-    .regex(/[0-9]/, "数字を含む必要があります"),
-});
-```
-
-## まとめ
-
-Zodを活用することで：
-
-1. **ランタイム検証**：実行時にデータの整合性を確認
-2. **型安全性**：`as`を使わずに正確な型を取得
-3. **保守性**：スキーマから型が自動生成されるため、変更に強い
-4. **エラーハンドリング**：具体的で分かりやすいエラーメッセージ
-5. **開発効率**：スキーマと型定義の一元管理
 
 型アサーションを使わずに済むZodの活用で、ランタイムエラーのリスクを減らし、より安全なTypeScriptコードを書けます。特に外部データを扱う際は、Zodによる検証層を設けることで、予期しないデータ形式によるバグを事前に防げます。
+
+とはいえ、何でもかんでもZodで検証する必要はありません。用途に合わせてZodが提供しているメソッド（`parse`、`safeParse`、`strict`、`passthrough`など）を使い分けて、ほどほどに。
