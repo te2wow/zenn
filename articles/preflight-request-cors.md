@@ -1,4 +1,10 @@
-# プリフライトリクエスト（Preflight Request）とは何か
+---
+title: "プリフライトリクエスト（Preflight Request）とは何か"
+emoji: "✈️"
+type: "tech"
+topics: ["cors", "http", "web", "security", "frontend"]
+published: false
+---
 
 ## はじめに
 

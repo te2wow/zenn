@@ -1,3 +1,11 @@
+---
+title: "obs-websocket-jsでJavaScriptからOBS Studioを制御する"
+emoji: "🎬"
+type: "tech"
+topics: ["obs", "websocket", "javascript", "streaming"]
+published: false
+---
+
 ## はじめに
 
 配信やスクリーンキャプチャなどで広く使われているOBS Studio（Open Broadcaster Software）は、多くのクリエイターにとって必須のツールとなっています。OBSを外部から制御できれば、配信の自動化やカスタムコントロールの作成など、様々な可能性が広がります。

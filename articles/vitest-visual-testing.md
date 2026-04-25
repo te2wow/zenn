@@ -12,7 +12,7 @@ Vitest 4.0.0-beta.4で追加された`toMatchScreenshot`を使って、実際に
 
 今回作成したデモプロジェクトでは、Button、Card、Toggleといった基本的なUIコンポーネントのビジュアルテストを実装しました。
 
-![アプリケーション全体のスクリーンショット](app-light-mode-chromium-darwin.png)
+![アプリケーション全体のスクリーンショット](/images/vitest-visual-testing/app-light-mode-chromium-darwin.png)
 
 ## 環境構築
 
@@ -126,7 +126,7 @@ test('Buttonコンポーネントのバリエーション', async () => {
 
 ### 実際のスクリーンショット
 
-![Primary Button](button-primary-chromium-darwin.png)
+![Primary Button](/images/vitest-visual-testing/button-primary-chromium-darwin.png)
 
 このように、各ボタンバリアントのスクリーンショットが自動で保存され、次回実行時には比較が行われます。
 
@@ -148,7 +148,7 @@ test('ボタンのhover状態', async () => {
 })
 ```
 
-![Hover状態のボタン](button-hover-state-chromium-darwin.png)
+![Hover状態のボタン](/images/vitest-visual-testing/button-hover-state-chromium-darwin.png)
 
 hover状態も`classList.add('hover')`でシミュレートして検証できます。
 
@@ -169,7 +169,7 @@ test('カードコンポーネントの見た目', async () => {
 })
 ```
 
-![デフォルトのカード](card-default-chromium-darwin.png)
+![デフォルトのカード](/images/vitest-visual-testing/card-default-chromium-darwin.png)
 
 ### ダークモード対応のテスト
 
@@ -215,7 +215,7 @@ test('トグルコンポーネントの状態', async () => {
 })
 ```
 
-![ON状態のトグル](toggle-on-chromium-darwin.png)
+![ON状態のトグル](/images/vitest-visual-testing/toggle-on-chromium-darwin.png)
 
 トグルのON/OFF状態もそれぞれスクリーンショットで検証できます。
 
