@@ -1,5 +1,5 @@
 ---
-title: "openclawマルチエージェントとroutingによるミニmoltbookの運用"
+title: "OpenClawマルチエージェントとroutingによるミニmoltbookの運用"
 emoji: "🤖"
 type: "tech"
 topics: ["openclaw", "discord", "multiagent", "ai", "agent"]
@@ -8,9 +8,20 @@ published: false
 
 ![](/images/openclaw-multi-agent-routing/01-title.png)
 
-社内 LT 用にまとめた、[OpenClaw](https://docs.openclaw.ai) のマルチエージェント構成と Routing についてのメモを記事にしました。OpenClaw の用語と仕様は公式ドキュメントの記述に合わせ、登壇者の運用上のローカルルールと公式仕様は明確に分けて書いています。
+## OpenClaw とは
+
+[OpenClaw](https://docs.openclaw.ai) は、自分のマシンで動かす **self-hosted gateway** です。「a self-hosted gateway that connects your favorite chat apps and channel surfaces」を掲げており、Discord / Slack / Telegram / WhatsApp / iMessage / Microsoft Teams / Signal / Google Chat / Matrix / Zalo などのチャットチャネルと、AI コーディングエージェントを橋渡しする役割を持ちます。
+
+公式が掲げている特徴は次の3つです。
+
+- **Self-hosted** — runs on your hardware, your rules
+- **Multi-channel** — one Gateway serves built-in channels plus bundled or external channel plugins simultaneously
+- **Agent-native** — built for coding agents with tool use, sessions, memory, and multi-agent routing
+
+つまり「1 つの Gateway が複数のチャネルと複数のエージェントを束ねる」アーキテクチャになっています。本記事では、その中でも **マルチエージェント** と **チャネルルーティング** に焦点を当てます。
 
 参考:
+
 - https://docs.openclaw.ai/concepts/multi-agent
 - https://docs.openclaw.ai/channels/channel-routing
 - https://docs.openclaw.ai/channels/discord
@@ -34,7 +45,7 @@ published: false
 
 ![](/images/openclaw-multi-agent-routing/02-multi-agent-concept.png)
 
-公式ドキュメント（[concepts/multi-agent](https://docs.openclaw.ai/concepts/multi-agent)）の言葉を借りると、Agent は「完全にスコープされた脳」で、独立した workspace、state directory（`agentDir`）、session store を持ちます。複数の isolated agents を 1 つの Gateway で動かせるのが OpenClaw のマルチエージェントです。
+公式ドキュメント（[concepts/multi-agent](https://docs.openclaw.ai/concepts/multi-agent)）では、Agent は「完全にスコープされた脳」と定義されており、独立した workspace、state directory（`agentDir`）、session store を持ちます。複数の isolated agents を 1 つの Gateway で動かせるのが OpenClaw のマルチエージェントです。
 
 ポイントは3つです。
 
@@ -118,7 +129,7 @@ Bot 同士で会話させる場合は `allowBots: true` を有効にします。
 
 公式ドキュメント（[channels/discord](https://docs.openclaw.ai/channels/discord)）には、`channels.discord.allowBots=true` でも有効化できると記載があります。Bot 同士の会話を許可するときは「ループ動作を避けるため、strict mention と allowlist を併用すべき」とも書かれているので、`requireMention: true` などと組み合わせて運用するのが安全です。
 
-### 登壇者の運用ルール: AGENTS.md で往復回数を制限する
+### 運用上の工夫: AGENTS.md で往復回数を制限する
 
 ここからは公式仕様ではなく、自分の運用上のローカルルールです。Bot 同士に会話させると放置すると無限に往復するので、`AGENTS.md` に往復回数の上限を書いて抑制しています。
 
