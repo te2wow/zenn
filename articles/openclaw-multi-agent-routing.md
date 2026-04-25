@@ -31,15 +31,15 @@ published: false
 最近の楽しみは、エージェント同士の会話を眺めること（たまに乱入する）です。やりたいことを並べると、自然とマルチエージェント構成に行き着きます。
 
 - Discord Bot を n 個使いたい
-  - 「一般チャンネル用」と「コーディング専用」でそれぞれ違うエージェント・違うチャンネルに接続したい
+  - 「一般 Channel 用」と「コーディング専用」でそれぞれ違うエージェント・違う Channel に接続したい
 - Bot ごとに設定を分けたい
-  - トークン・ギルド・チャンネルを別管理
+  - Bot Token・Guild・Channel を別管理
   - セッションを混在させたくない
   - 会話履歴・認証情報を完全分離したい
-- 特定チャンネルだけ Opus に
+- 特定の Channel だけ上位の Claude モデルに
   - 深い作業用 Bot だけモデルを変えたい
 
-これらはすべて OpenClaw のマルチエージェント設計で実現できます。雰囲気としては「ミニミニ moltbook」のように、目的別の脳をいくつか並べて遊ぶイメージです。
+これらはすべて OpenClaw のマルチエージェント設計で実現できます。
 
 ## マルチエージェントとは — 1 Gateway で複数の独立した脳
 
@@ -56,9 +56,9 @@ published: false
 3. **ユースケース例**
    - 雑談 Bot とコーディング Bot を同じサーバーで運用
    - 家族用・仕事用を分離
-   - モデルをエージェントごとに変更（Sonnet vs Opus）
+   - エージェントごとに Claude のモデルを変える（軽量モデル vs 上位モデル）
 
-エージェントは次のコマンドで追加します。
+エージェントは次のコマンドで追加することができます。
 
 ```bash
 openclaw agents add <agentId>
@@ -79,13 +79,13 @@ openclaw agents add <agentId>
 | Sessions | `~/.openclaw/agents/<agentId>/sessions` |
 | 認証プロファイル | `~/.openclaw/agents/<agentId>/agent/auth-profiles.json` |
 
-認証情報は per-agent で共有されません。別 agent に認証をコピーしたい場合は `auth-profiles.json` を明示的にコピーする必要があります。`agentDir` を agent 間で再利用すると auth/session collisions が起きるため避けてください、と公式に明記されています。
+認証情報は per-agent で共有されません。別 agent に認証をコピーしたい場合は `auth-profiles.json` を明示的にコピーする必要があります。`agentDir` を agent 間で再利用すると auth/session collisions が起きるため避けてくださいとされています。
 
 ## Discord Bot の設定例
 
 ![](/images/openclaw-multi-agent-routing/03-discord-bot-config.png)
 
-Discord 用の典型的な設定を、`~/.openclaw/openclaw.json` に書きます。
+Discord 用の設定を、`~/.openclaw/openclaw.json` に書きます。
 
 参加サーバーの guild ID を設定する例:
 
@@ -129,19 +129,8 @@ Bot 同士で会話させる場合は `allowBots: true` を有効にします。
 
 公式ドキュメント（[channels/discord](https://docs.openclaw.ai/channels/discord)）には、`channels.discord.allowBots=true` でも有効化できると記載があります。Bot 同士の会話を許可するときは「ループ動作を避けるため、strict mention と allowlist を併用すべき」とも書かれているので、`requireMention: true` などと組み合わせて運用するのが安全です。
 
-### 運用上の工夫: AGENTS.md で往復回数を制限する
 
-ここからは公式仕様ではなく、自分の運用上のローカルルールです。Bot 同士に会話させると放置すると無限に往復するので、`AGENTS.md` に往復回数の上限を書いて抑制しています。
-
-```markdown
-# AGENTS.md
-- sessions_send の往復は最大 2 回で完結させる
-- 継続不要な場合は REPLY_SKIP を返す
-```
-
-`sessions_send`（agent-to-agent の通信）の上限や `REPLY_SKIP` は OpenClaw 公式の標準機能ではなく、こちらで決めて運用しているプロンプト規約です。公式機能としては `tools.agentToAgent.enabled` が off by default になっているので、有効化する場合はあわせて `AGENTS.md` で振る舞いを縛っておくと事故が減ります。
-
-## Routing — 1 つの OpenClaw から複数のチャネル/Bot へどう振り分けているか
+## 1 つの OpenClaw から複数のチャネル/Bot へどう振り分けているか
 
 ここからが本題のチャネルルーティングです。
 
