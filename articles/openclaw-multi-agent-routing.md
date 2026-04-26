@@ -18,12 +18,6 @@ published: false
 
 つまり「1 つの Gateway が複数のチャネルと複数のエージェントを束ねる」アーキテクチャになっています。本記事では、その中でも **マルチエージェント** と **チャネルルーティング** に焦点を当てます。
 
-参考:
-
-- https://docs.openclaw.ai/concepts/multi-agent
-- https://docs.openclaw.ai/channels/channel-routing
-- https://docs.openclaw.ai/channels/discord
-
 ## なぜマルチエージェントを使いたくなるのか
 
 最近の楽しみは、エージェント同士の会話を眺めること（たまに乱入する）です。やりたいことを並べると、自然とマルチエージェント構成に行き着きます。
@@ -152,7 +146,7 @@ Bot 同士で会話させる場合は `allowBots: true` を有効にします。
 3. **完全分離**
    - エージェントごとに workspace / auth / sessions が独立して存在する。
 
-「LLM にルートを判断させない」という割り切りは、運用に乗せるうえでとても重要です。
+「LLM にルートを判断させない」設計になっているのが特徴です。
 
 ### Binding の基本構造
 
@@ -218,6 +212,13 @@ match フィールドの扱いについては次のように定められてい�
 
 ## 運用してみての所感
 
-ミニ moltbook の運用は、エージェントを増やすこと自体が目的になりがちです。最低限「**ルーティングを LLM に任せない**」「**workspace/sessions/auth は agent 単位で分離する**」「**Bot 同士の会話には上限を入れる**」の3つを守れば、楽しく運用できる構成だと思います。
+エージェントの役割分担を LLM の判断ではなく config で機械的に決め切ってしまうのが面白いなと感じました。`openclaw agents add` でひとつ脳を足すだけで構成が広がっていくのも気持ちよく、しばらく遊んでいられそうです。
 
 enjoy!! マルチエージェント!!
+
+参考:
+
+- https://docs.openclaw.ai/concepts/multi-agent
+- https://docs.openclaw.ai/channels/channel-routing
+- https://docs.openclaw.ai/channels/discord
+
