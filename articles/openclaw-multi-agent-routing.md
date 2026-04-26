@@ -155,7 +155,7 @@ Bot 同士が話せるようにしておくと、エージェント同士が話�
 
 受信メッセージは `bindings` のルールに対して順に照合され、最終的に行き先の `agentId` が決まります。決まった agent の workspace + sessions にメッセージがルーティングされます。
 
-binding は次のように書きます（[channels/channel-routing](https://docs.openclaw.ai/channels/channel-routing) の例より）。
+binding は次のように書きます（[channels/channel-routing]
 
 ```json5
 {
