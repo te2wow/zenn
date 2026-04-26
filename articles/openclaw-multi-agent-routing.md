@@ -73,8 +73,6 @@ openclaw agents add <agentId>
 
 ## Discord Bot の設定例
 
-![](/images/openclaw-multi-agent-routing/03-discord-bot-config.png)
-
 Discord 用の設定を、`~/.openclaw/openclaw.json` に書きます。
 
 参加 Guild とその中の Channel を設定する例:
@@ -137,9 +135,7 @@ Bot 同士が話せるようにしておくと、エージェント同士が話�
 
 ### Routing の基本思想
 
-![](/images/openclaw-multi-agent-routing/04-routing-philosophy.png)
-
-[channels/channel-routing](https://docs.openclaw.ai/channels/channel-routing) の冒頭はこのように始まります。
+[channels/channel-routing](https://docs.openclaw.ai/channels/channel-routing) に思想についての記述があります。
 
 > "OpenClaw routes replies back to the channel where a message came from. The model does not choose a channel; routing is deterministic and controlled by the host configuration."
 
@@ -155,8 +151,6 @@ Bot 同士が話せるようにしておくと、エージェント同士が話�
 「LLM にルートを判断させない」設計になっているのが特徴です。
 
 ### Binding の基本構造
-
-![](/images/openclaw-multi-agent-routing/05-binding-structure.png)
 
 受信メッセージは `channel` / `accountId` / `peer` を持ち、`bindings` のルールに対して順に照合され、最終的に `agentId` が決まります。決まった agent の workspace + sessions にメッセージがルーティングされます。
 
@@ -186,8 +180,6 @@ match フィールドの扱いについては次のように定められてい�
 
 ### Routing ルール — most-specific wins（8段階）
 
-![](/images/openclaw-multi-agent-routing/06-most-specific-wins.png)
-
 複数の binding が候補になり得るとき、もっとも具体的なルールが勝ちます。公式の優先度は以下の8段階です。
 
 | 優先度 | ルール | 条件 |
@@ -205,7 +197,7 @@ match フィールドの扱いについては次のように定められてい�
 
 ## 運用してみての所感
 
-エージェントの役割分担を LLM の判断ではなく config で機械的に決め切ってしまうのが面白いなと感じました。`openclaw agents add` でひとつ脳を足すだけで構成が広がっていくのも気持ちよく、しばらく遊んでいられそうです。
+エージェントの役割分担を LLM の判断ではなく config で機械的に決め切ってしまうのが面白いなと感じました。
 
 enjoy!! マルチエージェント!!
 
