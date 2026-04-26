@@ -131,9 +131,9 @@ Bot 同士が話せるようにしておくと、エージェント同士が話�
 ![](/images/openclaw-multi-agent-routing/08-different-models-personas.png)
 
 
-## 1 つの OpenClaw から複数のチャネル/Bot へどう振り分けているか
+## チャネルルーティング 
 
-ここからが本題のチャネルルーティングです。
+1 つの OpenClaw から複数のチャネル/Bot へどう振り分けているのでしょうか
 
 ### Routing の基本思想
 
@@ -202,19 +202,6 @@ match フィールドの扱いについては次のように定められてい�
 | 8 | Default agent | `agents.list[].default` → 先頭エントリ → `main`（fallback） |
 
 直感的には「メッセージが具体的であればあるほど、より specific なルールが当たる」と捉えると分かりやすいです。例えば DM の `peer.id` が一致するなら 1、Guild にだけ反応させたいなら 4、Channel 全体に1つのエージェントを割り当てるなら 7、何もマッチしなければ 8 の default agent に落ちます。
-
-### スライドで触れていない、知っておくと便利な公式機能
-
-スライドには出てこなかったものの、運用するうえで知っておくと便利な公式機能をいくつか補足します。
-
-- **`groupChat.mentionPatterns`**: グループでの mention gating。特定のエージェントだけ反応させたいときに使う。
-- **`tools.agentToAgent.enabled`**: agent 間通信は「Off by default: agent-to-agent messaging must be explicitly enabled」とされている。Bot 同士で会話させるときには明示的に有効化が必要。
-- **`replyToMode`**（Discord）: Discord ネイティブのリプライ挙動。`off` / `first` / `all` / `batched`。
-- **`requireMention`** / **`dmPolicy`**: 反応条件と DM のアクセス制御。
-- **`historyLimit`**: Guild チャネルの履歴取得上限（デフォルト 20）。
-- **`threadBindings`**: スレッド単位の session バインド。
-
-特に「`tools.agentToAgent.enabled` は off by default」は、`allowBots: true` だけ設定して動かないときに踏みやすいので注意です。
 
 ## 運用してみての所感
 
