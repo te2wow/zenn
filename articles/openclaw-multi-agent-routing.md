@@ -10,11 +10,12 @@ published: false
 
 [OpenClaw](https://docs.openclaw.ai) は、自分のマシンで動かす **self-hosted gateway** です。「a self-hosted gateway that connects your favorite chat apps and channel surfaces」を掲げており、Discord / Slack / Telegram / WhatsApp / iMessage / Microsoft Teams / Signal / Google Chat / Matrix / Zalo などのチャットチャネルと、AI コーディングエージェントを橋渡しする役割を持ちます。
 
-公式が掲げている特徴は次の3つです。
+主な特徴は次の4つです。
 
 - **Self-hosted** — runs on your hardware, your rules
 - **Multi-channel** — one Gateway serves built-in channels plus bundled or external channel plugins simultaneously
 - **Agent-native** — built for coding agents with tool use, sessions, memory, and multi-agent routing
+- **Open source** — MIT licensed, community-driven
 
 つまり「1 つの Gateway が複数のチャネルと複数のエージェントを束ねる」アーキテクチャになっています。本記事では、その中でも **マルチエージェント** と **チャネルルーティング** に焦点を当てます。
 
@@ -42,9 +43,9 @@ published: false
 1. **各エージェントは完全独立**
    - workspace / agentDir / sessions がそれぞれ独立。認証情報も混在しない。
 2. **1つの Gateway が全部を束ねる**
-   - WhatsApp / Discord / Telegram / Slack などのチャネルを1つのサーバーで管理。Bot を増やしてもサーバーは1台でよい。
+   - WhatsApp / Discord / Telegram / Slack などのチャネルを1つの Gateway で管理。Bot を増やしても Gateway は1つでよい。
 3. **ユースケース例**
-   - 雑談 Bot とコーディング Bot を同じサーバーで運用
+   - 雑談 Bot とコーディング Bot を同じ Gateway で運用
    - 家族用・仕事用を分離
    - エージェントごとに Claude のモデルを変える（軽量モデル vs 上位モデル）
 
@@ -69,7 +70,9 @@ openclaw agents add <agentId>
 | Sessions | `~/.openclaw/agents/<agentId>/sessions` |
 | 認証プロファイル | `~/.openclaw/agents/<agentId>/agent/auth-profiles.json` |
 
-認証情報は per-agent で共有されません。別 agent に認証をコピーしたい場合は `auth-profiles.json` を明示的にコピーする必要があります。`agentDir` を agent 間で再利用すると auth/session collisions が起きるため避けてくださいとされています。
+認証情報は per-agent で共有されません。別 agent に認証をコピーしたい場合は `auth-profiles.json` を明示的にコピーする必要があります。`agentDir` の使い回しは禁止です。
+
+> "Never reuse `agentDir` across agents (it causes auth/session collisions)."
 
 ## Discord Bot の設定例
 
@@ -118,6 +121,10 @@ Bot 同士で会話させる場合は `allowBots: true` を有効にします。
 
 > "If you set `channels.discord.allowBots=true`, use strict mention and allowlist rules to avoid loop behavior."
 
+無限ループを避けたい場合は、`allowBots: "mentions"`（ボットがメンションしたときだけ受け付ける）という設定もあります。
+
+> "Prefer `channels.discord.allowBots="mentions"` to only accept bot messages that mention the bot."
+
 `requireMention: true` などと組み合わせて、メンションされたときだけ反応するように絞っておくのが安全です。
 
 Bot 同士が話せるようにしておくと、エージェント同士が話題について議論しているのを眺められて、手元でミニ moltbook のような運用ができます。
@@ -141,59 +148,47 @@ Bot 同士が話せるようにしておくと、エージェント同士が話�
 
 要点は3つです。
 
-1. **AI はルーティングしない**
-   - モデルはチャンネルを選ばない。ルーティングは config が完全に制御する。
-2. **決定論的**
-   - 同じ入力に対して常に同じエージェントへ。挙動が予測・デバッグしやすい。
-3. **完全分離**
-   - エージェントごとに workspace / auth / sessions が独立して存在する。
+1. **AI はルーティングしない** — `The model does not choose a channel`
+2. **決定論的** — `routing is deterministic`
+3. **設定が制御する** — `controlled by the host configuration`
 
 「LLM にルートを判断させない」設計になっているのが特徴です。
 
 ### Binding の基本構造
 
-受信メッセージは `channel` / `accountId` / `peer` を持ち、`bindings` のルールに対して順に照合され、最終的に `agentId` が決まります。決まった agent の workspace + sessions にメッセージがルーティングされます。
+受信メッセージは `bindings` のルールに対して順に照合され、最終的に行き先の `agentId` が決まります。決まった agent の workspace + sessions にメッセージがルーティングされます。
 
-binding は次のように書きます。
+binding は次のように書きます（[channels/channel-routing](https://docs.openclaw.ai/channels/channel-routing) の例より）。
 
 ```json5
-// openclaw.json — bindings の構造
 {
   bindings: [
-    {
-      agentId: "coding",        // → このエージェントへ
-      match: {
-        channel:   "discord",   // チャンネル
-        accountId: "coding",    // Bot アカウント（省略=デフォルトのみマッチ）
-        peer: { kind: "group", id: "333333333333" }, // 特定チャンネル ID
-      },
-    },
+    { match: { channel: "slack", teamId: "T123" }, agentId: "support" },
+    { match: { channel: "telegram", peer: { kind: "group", id: "-100123" } }, agentId: "support" },
   ],
 }
 ```
 
-match フィールドの扱いについては次のように定められています。
+`match` のフィールドには `channel` のほか `peer` / `guildId` / `teamId` / `roles` などを組み合わせて指定します。複数フィールドを指定した場合は次のとおり AND 条件になります。
 
-> "When a binding includes multiple match fields, all provided fields must match for that binding to apply."
-
-つまり複数フィールドを指定した場合は **すべて一致する必要がある（AND 条件）** です。
+> "When a binding includes multiple match fields (`peer`, `guildId`, `teamId`, `roles`), all provided fields must match for that binding to apply."
 
 ### Routing ルール — most-specific wins（8段階）
 
-複数の binding が候補になり得るとき、もっとも具体的なルールが勝ちます。公式の優先度は以下の8段階です。
+複数の binding が候補になり得るとき、もっとも具体的なルールが勝ちます。優先度は以下の8段階です。
 
 | 優先度 | ルール | 条件 |
 |---|---|---|
-| 1 | Exact peer match | `peer.kind` + `peer.id` の完全一致（最高優先） |
-| 2 | Parent peer match | スレッド継承（thread 内返信） |
-| 3 | Guild + roles match | Discord — `guildId` + `roles`（AND） |
-| 4 | Guild match | Discord — `guildId` のみ |
-| 5 | Team match | Slack — `teamId` |
-| 6 | Account match | `accountId` on channel |
-| 7 | Channel match | `accountId: "*"` — チャンネル全体 |
-| 8 | Default agent | `agents.list[].default` → 先頭エントリ → `main`（fallback） |
+| 1 | Exact peer match | `bindings` with `peer.kind` + `peer.id` |
+| 2 | Parent peer match | thread inheritance |
+| 3 | Guild + roles match (Discord) | `guildId` + `roles` |
+| 4 | Guild match (Discord) | `guildId` |
+| 5 | Team match (Slack) | `teamId` |
+| 6 | Account match | `accountId` on the channel |
+| 7 | Channel match | any account on that channel, `accountId: "*"` |
+| 8 | Default agent | `agents.list[].default`, else first list entry, fallback to `main` |
 
-直感的には「メッセージが具体的であればあるほど、より specific なルールが当たる」と捉えると分かりやすいです。例えば DM の `peer.id` が一致するなら 1、Guild にだけ反応させたいなら 4、Channel 全体に1つのエージェントを割り当てるなら 7、何もマッチしなければ 8 の default agent に落ちます。
+直感的には「メッセージが具体的であればあるほど、より specific なルールが当たる」と捉えると分かりやすいです。例えば DM の `peer.id` が一致するなら 1、Guild にだけ反応させたいなら 4、何もマッチしなければ 8 の Default agent に落ちます。
 
 ## 運用してみての所感
 
