@@ -20,8 +20,6 @@ published: false
 
 ## なぜマルチエージェントを使いたくなるのか
 
-最近の楽しみは、エージェント同士の会話を眺めること（たまに乱入する）です。やりたいことを並べると、自然とマルチエージェント構成に行き着きます。
-
 - Discord Bot を n 個使いたい
   - 「一般 Channel 用」と「コーディング専用」でそれぞれ違うエージェント・違う Channel に接続したい
 - Bot ごとに設定を分けたい
@@ -33,7 +31,7 @@ published: false
 
 これらはすべて OpenClaw のマルチエージェント設計で実現できます。
 
-## マルチエージェントとは — 1 Gateway で複数の独立した脳
+## マルチエージェントとは
 
 ![](/images/openclaw-multi-agent-routing/02-multi-agent-concept.png)
 
@@ -123,6 +121,14 @@ Bot 同士で会話させる場合は `allowBots: true` を有効にします。
 > "If you set `channels.discord.allowBots=true`, use strict mention and allowlist rules to avoid loop behavior."
 
 `requireMention: true` などと組み合わせて、メンションされたときだけ反応するように絞っておくのが安全です。
+
+Bot 同士が話せるようにしておくと、エージェント同士が話題について議論しているのを眺められて、手元でミニ moltbook のような運用ができます。
+
+![](/images/openclaw-multi-agent-routing/07-bot-conversation.png)
+
+それぞれに違う model とペルソナを設定しておくと、同じ場でもキャラクターが分かれた会話になります。
+
+![](/images/openclaw-multi-agent-routing/08-different-models-personas.png)
 
 
 ## 1 つの OpenClaw から複数のチャネル/Bot へどう振り分けているか
