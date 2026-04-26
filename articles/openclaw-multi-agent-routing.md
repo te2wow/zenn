@@ -6,8 +6,6 @@ topics: ["openclaw", "discord", "multiagent", "ai", "agent"]
 published: false
 ---
 
-![](/images/openclaw-multi-agent-routing/01-title.png)
-
 ## OpenClaw とは
 
 [OpenClaw](https://docs.openclaw.ai) は、自分のマシンで動かす **self-hosted gateway** です。「a self-hosted gateway that connects your favorite chat apps and channel surfaces」を掲げており、Discord / Slack / Telegram / WhatsApp / iMessage / Microsoft Teams / Signal / Google Chat / Matrix / Zalo などのチャットチャネルと、AI コーディングエージェントを橋渡しする役割を持ちます。
@@ -45,7 +43,7 @@ published: false
 
 ![](/images/openclaw-multi-agent-routing/02-multi-agent-concept.png)
 
-公式ドキュメント（[concepts/multi-agent](https://docs.openclaw.ai/concepts/multi-agent)）では、Agent は「完全にスコープされた脳」と定義されており、独立した workspace、state directory（`agentDir`）、session store を持ちます。複数の isolated agents を 1 つの Gateway で動かせるのが OpenClaw のマルチエージェントです。
+[concepts/multi-agent](https://docs.openclaw.ai/concepts/multi-agent) で、Agent は「**a fully scoped brain**（完全にスコープされた脳）」と定義されています。独立した workspace、state directory（`agentDir`）、session store を持ち、複数の isolated agents を 1 つの Gateway で動かせるのが OpenClaw のマルチエージェントです。
 
 ポイントは3つです。
 
@@ -68,7 +66,7 @@ openclaw agents add <agentId>
 
 ### エージェントごとに独立しているもの
 
-公式ドキュメント上、各 agent は次のディレクトリを所有します。
+各 agent は次のディレクトリを所有します。
 
 | 用途 | パス |
 |---|---|
@@ -87,20 +85,17 @@ openclaw agents add <agentId>
 
 Discord 用の設定を、`~/.openclaw/openclaw.json` に書きます。
 
-参加サーバーの guild ID を設定する例:
+参加 Guild とその中の Channel を設定する例:
 
 ```json5
 {
   channels: {
     discord: {
-      accounts: {
-        default: {
-          guilds: {
-            "123456789012345678": { // ← guild ID
-              channels: {
-                "222222222222": { allow: true },
-              },
-            },
+      guilds: {
+        "123456789012345678": { // ← Guild ID
+          requireMention: true,
+          channels: {
+            "222222222222222222": { allow: true }, // ← Channel ID
           },
         },
       },
@@ -109,25 +104,31 @@ Discord 用の設定を、`~/.openclaw/openclaw.json` に書きます。
 }
 ```
 
+`guilds` は `channels.discord` の直下に置きます（`accounts.<id>` の下ではないので注意）。複数の Bot アカウントを使う場合、`token` は account 単位で上書きできます。
+
 Bot 同士で会話させる場合は `allowBots: true` を有効にします。
 
 ```json5
 {
   channels: {
     discord: {
+      allowBots: true, // ← Bot 同士で会話させる場合
       accounts: {
         coding: {
           token: "BOT_TOKEN_CODING",
-          allowBots: true, // ← Bot 同士で会話させる場合
-          guilds: { /* ... */ },
         },
       },
+      guilds: { /* ... */ },
     },
   },
 }
 ```
 
-公式ドキュメント（[channels/discord](https://docs.openclaw.ai/channels/discord)）には、`channels.discord.allowBots=true` でも有効化できると記載があります。Bot 同士の会話を許可するときは「ループ動作を避けるため、strict mention と allowlist を併用すべき」とも書かれているので、`requireMention: true` などと組み合わせて運用するのが安全です。
+[channels/discord](https://docs.openclaw.ai/channels/discord) には次のような注意喚起があります。
+
+> "If you set `channels.discord.allowBots=true`, use strict mention and allowlist rules to avoid loop behavior."
+
+`requireMention: true` などと組み合わせて、メンションされたときだけ反応するように絞っておくのが安全です。
 
 
 ## 1 つの OpenClaw から複数のチャネル/Bot へどう振り分けているか
@@ -138,7 +139,7 @@ Bot 同士で会話させる場合は `allowBots: true` を有効にします。
 
 ![](/images/openclaw-multi-agent-routing/04-routing-philosophy.png)
 
-公式ドキュメント（[channels/channel-routing](https://docs.openclaw.ai/channels/channel-routing)）の冒頭にこうあります。
+[channels/channel-routing](https://docs.openclaw.ai/channels/channel-routing) の冒頭はこのように始まります。
 
 > "OpenClaw routes replies back to the channel where a message came from. The model does not choose a channel; routing is deterministic and controlled by the host configuration."
 
@@ -177,7 +178,7 @@ binding は次のように書きます。
 }
 ```
 
-公式ドキュメントには次のように明記されています。
+match フィールドの扱いについては次のように定められています。
 
 > "When a binding includes multiple match fields, all provided fields must match for that binding to apply."
 
@@ -200,16 +201,14 @@ binding は次のように書きます。
 | 7 | Channel match | `accountId: "*"` — チャンネル全体 |
 | 8 | Default agent | `agents.list[].default` → 先頭エントリ → `main`（fallback） |
 
-同一段でマッチが複数発生した場合は「first one in config order wins」、つまり設定順で先に書いたものが勝ちます。
-
-直感的には「メッセージが具体的であればあるほど、より specific なルールが当たる」と捉えると分かりやすいです。例えば DM の peer.id が一致するなら 1 が当たり、guild にだけ反応させたいなら 4、チャンネル全体に1つのエージェントを割り当てるなら 7、何もマッチしなければ 8 の default agent に落ちます。
+直感的には「メッセージが具体的であればあるほど、より specific なルールが当たる」と捉えると分かりやすいです。例えば DM の `peer.id` が一致するなら 1、Guild にだけ反応させたいなら 4、Channel 全体に1つのエージェントを割り当てるなら 7、何もマッチしなければ 8 の default agent に落ちます。
 
 ### スライドで触れていない、知っておくと便利な公式機能
 
 スライドには出てこなかったものの、運用するうえで知っておくと便利な公式機能をいくつか補足します。
 
 - **`groupChat.mentionPatterns`**: グループでの mention gating。特定のエージェントだけ反応させたいときに使う。
-- **`tools.agentToAgent.enabled`**: agent 間通信は **off by default**。Bot 同士で会話させるときに必要。
+- **`tools.agentToAgent.enabled`**: agent 間通信は「Off by default: agent-to-agent messaging must be explicitly enabled」とされている。Bot 同士で会話させるときには明示的に有効化が必要。
 - **`replyToMode`**（Discord）: Discord ネイティブのリプライ挙動。`off` / `first` / `all` / `batched`。
 - **`requireMention`** / **`dmPolicy`**: 反応条件と DM のアクセス制御。
 - **`historyLimit`**: Guild チャネルの履歴取得上限（デフォルト 20）。
