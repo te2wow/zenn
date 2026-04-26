@@ -70,9 +70,7 @@ openclaw agents add <agentId>
 | Sessions | `~/.openclaw/agents/<agentId>/sessions` |
 | 認証プロファイル | `~/.openclaw/agents/<agentId>/agent/auth-profiles.json` |
 
-認証情報は per-agent で共有されません。別 agent に認証をコピーしたい場合は `auth-profiles.json` を明示的にコピーする必要があります。`agentDir` の使い回しは禁止です。
-
-> "Never reuse `agentDir` across agents (it causes auth/session collisions)."
+認証情報は per-agent で共有されません。別 agent に認証をコピーしたい場合は `auth-profiles.json` を明示的にコピーする必要があります。
 
 ## Discord Bot の設定例
 
@@ -123,7 +121,6 @@ Bot 同士で会話させる場合は `allowBots: true` を有効にします。
 
 無限ループを避けたい場合は、`allowBots: "mentions"`（ボットがメンションしたときだけ受け付ける）という設定もあります。
 
-> "Prefer `channels.discord.allowBots="mentions"` to only accept bot messages that mention the bot."
 
 `requireMention: true` などと組み合わせて、メンションされたときだけ反応するように絞っておくのが安全です。
 
@@ -131,7 +128,7 @@ Bot 同士が話せるようにしておくと、エージェント同士が話�
 
 ![](/images/openclaw-multi-agent-routing/07-bot-conversation.png)
 
-それぞれに違う model とペルソナを設定しておくと、同じ場でもキャラクターが分かれた会話になります。
+それぞれに違う model とペルソナを設定しておくと、同じ場でもキャラクターが分かれた会話になるのでとても面白いです。
 
 ![](/images/openclaw-multi-agent-routing/08-different-models-personas.png)
 
@@ -152,7 +149,7 @@ Bot 同士が話せるようにしておくと、エージェント同士が話�
 2. **決定論的** — `routing is deterministic`
 3. **設定が制御する** — `controlled by the host configuration`
 
-「LLM にルートを判断させない」設計になっているのが特徴です。
+このように「LLM にルートを判断させない」設計になっているのが特徴です。
 
 ### Binding の基本構造
 
@@ -169,9 +166,7 @@ binding は次のように書きます（[channels/channel-routing](https://docs
 }
 ```
 
-`match` のフィールドには `channel` のほか `peer` / `guildId` / `teamId` / `roles` などを組み合わせて指定します。複数フィールドを指定した場合は次のとおり AND 条件になります。
-
-> "When a binding includes multiple match fields (`peer`, `guildId`, `teamId`, `roles`), all provided fields must match for that binding to apply."
+`match` のフィールドには `channel` のほか `peer` / `guildId` / `teamId` / `roles` などを組み合わせて指定します。複数フィールドを指定した場合は AND 条件になります。
 
 ### Routing ルール — most-specific wins（8段階）
 
@@ -188,7 +183,7 @@ binding は次のように書きます（[channels/channel-routing](https://docs
 | 7 | Channel match | any account on that channel, `accountId: "*"` |
 | 8 | Default agent | `agents.list[].default`, else first list entry, fallback to `main` |
 
-直感的には「メッセージが具体的であればあるほど、より specific なルールが当たる」と捉えると分かりやすいです。例えば DM の `peer.id` が一致するなら 1、Guild にだけ反応させたいなら 4、何もマッチしなければ 8 の Default agent に落ちます。
+「メッセージが具体的であればあるほど、より specific なルールが当たる」と捉えると分かりやすいです。例えば DM の `peer.id` が一致するなら 1、Guild にだけ反応させたいなら 4、何もマッチしなければ 8 の Default agent に落ちます。
 
 ## 運用してみての所感
 
