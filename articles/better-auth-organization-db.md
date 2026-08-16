@@ -8,7 +8,7 @@ published: false
 
 SaaS を作っていると、ほぼ必ず「組織」という概念が必要になります。ユーザーが個人として存在するだけでなく、会社やチームに属して、その中で権限が分かれて、他の人を招待できる、というやつです。
 
-[better-auth](https://better-auth.com) の [organization plugin](https://better-auth.com/docs/plugins/organization) は、この一式をプラグイン 1 つで用意してくれます。この記事では、組織を作ったときに**データベースで実際に何が起きているのか**を中心に、注意点をまとめます。
+[better-auth](https://better-auth.com) の [organization plugin](https://better-auth.com/docs/plugins/organization) は、この一式をプラグイン 1 つで用意してくれます。この記事では、組織を作ったときにデータベースで実際に何が起きているのかを中心に、注意点をまとめます。
 
 動作確認用のデモアプリを作ったので、そちらも合わせて参照してください。
 
@@ -26,9 +26,9 @@ SaaS を作っていると、ほぼ必ず「組織」という概念が必要に
 - owner / admin / member のような役割ごとに、操作できることを分ける
 - 上記すべてについて「他人の組織のデータを触れないこと」を保証する
 
-どれも難しくはないのですが、**認可の抜けが致命傷になる**のが厄介なところです。招待 ID を総当たりされたら他人の組織に入れてしまう、といった事故は起こりがちだと思います。
+どれも難しくはないのですが、認可の抜けが致命傷になるのが厄介なところです。招待 ID を総当たりされたら他人の組織に入れてしまう、といった事故は起こりがちだと思います。
 
-organization plugin はこの領域をまとめて引き受けてくれます。逆に言うと、**課金・プラン管理・組織ごとのリソース分離までは面倒を見てくれません**。プラグインが持つのはあくまで「組織・メンバー・招待・権限」の 4 つです。
+organization plugin はこの領域をまとめて引き受けてくれます。逆に言うと、課金・プラン管理・組織ごとのリソース分離までは面倒を見てくれません。プラグインが持つのはあくまで「組織・メンバー・招待・権限」の 4 つです。
 
 ## 最小構成
 
@@ -100,11 +100,11 @@ export const invitation = sqliteTable("invitation", {
 
 読みどころは 3 つあります。
 
-**1. `member` が本体である。** ユーザーと組織の関係は `member` テーブルが持ちます。ロールもここに乗ります。つまり「同じユーザーが組織 A では owner、組織 B では member」という状態が自然に表現できます。
+（1）`member` が本体である。ユーザーと組織の関係は `member` テーブルが持ちます。ロールもここに乗ります。つまり「同じユーザーが組織 A では owner、組織 B では member」という状態が自然に表現できます。
 
-**2. 外部キーが `onDelete: "cascade"` になっている。** 組織を削除すると、その組織の `member` と `invitation` は SQL レベルで消えます。アプリ側で消し漏らす心配はない代わりに、**組織削除は思っているより破壊的**です。論理削除にしたい場合は `disableOrganizationDeletion: true` で削除自体を塞いで、独自の運用を組む必要があります。
+（2）外部キーが `onDelete: "cascade"` になっている。組織を削除すると、その組織の `member` と `invitation` は SQL レベルで消えます。アプリ側で消し漏らす心配はない代わりに、組織削除は思っているより破壊的です。論理削除にしたい場合は `disableOrganizationDeletion: true` で削除自体を塞いで、独自の運用を組む必要があります。
 
-**3. `session` にカラムが 1 本増えている。** 既存の `session` テーブルに `activeOrganizationId` が追加されます。
+（3）`session` にカラムが 1 本増えている。既存の `session` テーブルに `activeOrganizationId` が追加されます。
 
 ```typescript
 export const session = sqliteTable("session", {
@@ -119,11 +119,11 @@ export const session = sqliteTable("session", {
 
 ## 組織を作ると DB では何が起きるか
 
-ここが本題です。`createOrganization` を 1 回呼ぶと、**2 つのテーブルに 1 行ずつ入ります**。
+ここが本題です。`createOrganization` を 1 回呼ぶと、2 つのテーブルに 1 行ずつ入ります。
 
 デモアプリでは画面の右半分に `demo.db` の中身を 1 秒ごとに表示していて、新しく増えた行が緑色に光るようにしています。ボタンを 1 回押した結果がこれです。
 
-![createOrganization を押すと organization テーブルと member テーブルに同時に 1 行ずつ追加され、session の activeOrganizationId が埋まる](/images/better-auth-organization-plugin/01-create-org.gif)
+![createOrganization を押すと organization テーブルと member テーブルに同時に 1 行ずつ追加され、session の activeOrganizationId が埋まる](/images/better-auth-organization-db/01-create-org.gif)
 
 API のレスポンスを見ると、作られた組織と一緒に `members` が返ってきていることが分かります。
 
@@ -165,7 +165,7 @@ organization_id = XPak6XwEiFkbZU3m5QYmuYmhgw4TpELE
 
 `created_at` が両者で完全に一致していることに注目してください。これは「組織を作る」と「作った人を owner として登録する」が 1 つの操作として扱われていることを示しています。
 
-つまり **`member` を自分で作る必要はありません**。よくある「組織を作ったあとに、作成者を管理者として INSERT する」というコードは不要です。
+つまり `member` を自分で作る必要はありません。よくある「組織を作ったあとに、作成者を管理者として INSERT する」というコードは不要です。
 
 作成者のロールは `creatorRole` で変えられます。既定は `owner` です。
 
@@ -195,7 +195,7 @@ organization({
 
 organization plugin で最初に引っかかるのはここだと思います。
 
-**サインインした直後、`session.activeOrganizationId` は `null` です。** ユーザーが 1 つしか組織に所属していなくても、自動では入りません。
+サインインした直後、`session.activeOrganizationId` は `null` です。ユーザーが 1 つしか組織に所属していなくても、自動では入りません。
 
 実際、デモアプリでサインアップ直後のセッションを見ると `null` になっています。
 
@@ -211,7 +211,7 @@ activeOrganizationId = None
 | `createOrganization` | 作った組織が入る |
 | `setActive` | 指定した組織が入る |
 
-したがって、**サインイン後に組織を選ばせる画面を作るか、セッション作成時に自前で埋めるか**のどちらかが必要です。後者は `databaseHooks` で書けます。
+したがって、サインイン後に組織を選ばせる画面を作るか、セッション作成時に自前で埋めるかのどちらかが必要です。後者は `databaseHooks` で書けます。
 
 ```typescript
 export const auth = betterAuth({
@@ -239,7 +239,7 @@ export const auth = betterAuth({
 
 ### activeOrganizationId を直接書き換えない
 
-この列はセッションに生えているので、汎用のセッション更新 API から書けてしまいそうに見えます。しかし**書き換えは `setActive` 経由に限るべき**です。`setActive` は「そのユーザーがその組織のメンバーであること」を検証しますが、汎用の更新経路を通すとその検証が飛びます。自分が所属していない組織の ID を入れられたら、アクセス制御の前提が崩れます。
+この列はセッションに生えているので、汎用のセッション更新 API から書けてしまいそうに見えます。しかし書き換えは `setActive` 経由に限るべきです。`setActive` は「そのユーザーがその組織のメンバーであること」を検証しますが、汎用の更新経路を通すとその検証が飛びます。自分が所属していない組織の ID を入れられたら、アクセス制御の前提が崩れます。
 
 この点は better-auth 側でも、プラグインが持つセッション列を入力不可として扱う修正が入っています（[PR #9965](https://github.com/better-auth/better-auth/pull/9965)）。使う側としても、素直に `setActive` を呼ぶのが安全です。
 
@@ -257,9 +257,9 @@ await authClient.organization.setActive({ organizationId: org.id });
 
 招待は「招待を作る」と「招待を受ける」の 2 段階で、それぞれ別のタイミングで DB が動きます。
 
-![inviteMember で invitation が pending として作られ、承諾すると status が accepted になって member が 1 行増える](/images/better-auth-organization-plugin/02-invite-accept.gif)
+![inviteMember で invitation が pending として作られ、承諾すると status が accepted になって member が 1 行増える](/images/better-auth-organization-db/02-invite-accept.gif)
 
-**1. `inviteMember` を呼ぶと `invitation` に 1 行入る。** この時点では `member` は増えません。状態は `pending` です。
+（1）`inviteMember` を呼ぶと `invitation` に 1 行入る。この時点では `member` は増えません。状態は `pending` です。
 
 ```json
 {
@@ -275,7 +275,7 @@ await authClient.organization.setActive({ organizationId: org.id });
 
 `expiresAt` は既定で 48 時間後です。`invitationExpiresIn` で秒単位で変更できます。
 
-**2. `acceptInvitation` を呼ぶと `member` が増え、`invitation` の状態が変わる。**
+（2）`acceptInvitation` を呼ぶと `member` が増え、`invitation` の状態が変わる。
 
 ```
 sqlite> select id, user_id, role from member;
@@ -286,7 +286,7 @@ sqlite> select id, status from invitation;
 SovbVKKXBfXzwE3z255LZoSRmDbeWALp  accepted
 ```
 
-ここで注意したいのは、**承諾しても `invitation` の行は消えず、`status` が `accepted` に変わるだけ**という点です。招待の履歴が残るのは監査上ありがたいのですが、招待の一覧をそのまま画面に出すと処理済みのものが混ざります。表示するときは `status` で絞る必要があります。
+ここで注意したいのは、承諾しても `invitation` の行は消えず、`status` が `accepted` に変わるだけという点です。招待の履歴が残るのは監査上ありがたいのですが、招待の一覧をそのまま画面に出すと処理済みのものが混ざります。表示するときは `status` で絞る必要があります。
 
 ### メール送信は自前で用意する
 
@@ -323,7 +323,7 @@ organization({
 
 実際に member ロールのユーザーで操作するとどうなるかを撮ったのがこちらです。
 
-![member ロールのユーザーは hasPermission が拒否を返し、組織削除も 403 で弾かれる](/images/better-auth-organization-plugin/03-permission.gif)
+![member ロールのユーザーは hasPermission が拒否を返し、組織削除も 403 で弾かれる](/images/better-auth-organization-db/03-permission.gif)
 
 `hasPermission` はサーバ側で判定を返します。
 
@@ -352,11 +352,11 @@ const res = await authClient.organization.hasPermission({
 }
 ```
 
-`hasPermission` は UI の出し分けのためのもので、**防御そのものはサーバ側のエンドポイントが担当している**という構造です。ボタンを隠すだけの実装でも穴は空きませんが、逆にクライアントの判定結果を信用して独自 API の認可を省くと危険です。
+`hasPermission` は UI の出し分けのためのもので、防御そのものはサーバ側のエンドポイントが担当しているという構造です。ボタンを隠すだけの実装でも穴は空きませんが、逆にクライアントの判定結果を信用して独自 API の認可を省くと危険です。
 
 ### 独自の権限を足すときは defaultStatements を混ぜる
 
-`createAccessControl` で独自リソースを定義できます。ここで**既定の statement をマージし忘れると、organization / member / invitation に対する既定の権限が消えます**。
+`createAccessControl` で独自リソースを定義できます。ここで既定の statement をマージし忘れると、organization / member / invitation に対する既定の権限が消えます。
 
 ```typescript
 import { createAccessControl } from "better-auth/plugins/access";
@@ -411,19 +411,19 @@ organizationClient({ ac, roles: { owner, admin, member } });
 
 ### checkRolePermission は同期的な判定である
 
-クライアントには、サーバに問い合わせずロールから判定する `checkRolePermission` もあります。UI の出し分けには便利ですが、同期的に動く都合上、**Dynamic Access Control で実行時に作った動的ロールは考慮されません**。動的ロールを使うなら、判定はサーバ側の `hasPermission` に寄せる必要があります。
+クライアントには、サーバに問い合わせずロールから判定する `checkRolePermission` もあります。UI の出し分けには便利ですが、同期的に動く都合上、Dynamic Access Control で実行時に作った動的ロールは考慮されません。動的ロールを使うなら、判定はサーバ側の `hasPermission` に寄せる必要があります。
 
 ## その他の注意点
 
-**ロールは文字列 1 列に入る。** `member.role` は `text` です。複数ロールを持たせるとカンマ区切りで 1 つの列に入ります。`role = 'admin'` のような素朴な SQL は、複数ロールを使い始めた瞬間に壊れます。
+ロールは文字列 1 列に入る。`member.role` は `text` です。複数ロールを持たせるとカンマ区切りで 1 つの列に入ります。`role = 'admin'` のような素朴な SQL は、複数ロールを使い始めた瞬間に壊れます。
 
-**組織の作成数・メンバー数には既定の上限がある。** `membershipLimit` の既定は 100、`invitationLimit` の既定も 100 です。大きな組織を扱うなら明示的に引き上げる必要があります。`organizationLimit` でユーザーごとの組織数も制限できます。
+組織の作成数・メンバー数には既定の上限がある。`membershipLimit` の既定は 100、`invitationLimit` の既定も 100 です。大きな組織を扱うなら明示的に引き上げる必要があります。`organizationLimit` でユーザーごとの組織数も制限できます。
 
-**`slug` は unique 制約付きである。** 全体で一意なので、ユーザーが自由に入力する場合は `checkSlug` で事前確認するか、衝突エラーを画面に出す作りが要ります。デモでは組織名から機械的に生成しているだけなので、実運用ではもう少し丁寧に扱う必要があります。
+`slug` は unique 制約付きである。全体で一意なので、ユーザーが自由に入力する場合は `checkSlug` で事前確認するか、衝突エラーを画面に出す作りが要ります。デモでは組織名から機械的に生成しているだけなので、実運用ではもう少し丁寧に扱う必要があります。
 
-**サーバから `createOrganization` を呼ぶときは `userId` とセッションを併用できない。** サーバ側でセッションヘッダを渡さずに呼ぶ場合は `userId` を指定します。両方同時には使えません。
+サーバから `createOrganization` を呼ぶときは `userId` とセッションを併用できない。サーバ側でセッションヘッダを渡さずに呼ぶ場合は `userId` を指定します。両方同時には使えません。
 
-**リクエストには Origin が必要。** curl で API を直接叩いて検証しようとすると、`MISSING_OR_NULL_ORIGIN` で弾かれます。CSRF 対策なので、動作確認のときは `Origin` ヘッダを付けてください。
+リクエストには Origin が必要。curl で API を直接叩いて検証しようとすると、`MISSING_OR_NULL_ORIGIN` で弾かれます。CSRF 対策なので、動作確認のときは `Origin` ヘッダを付けてください。
 
 ```bash
 curl -X POST http://localhost:3000/api/auth/organization/create \
