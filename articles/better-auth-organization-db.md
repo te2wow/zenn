@@ -347,8 +347,6 @@ organization({ ac, roles: { owner, admin, member } });
 organizationClient({ ac, roles: { owner, admin, member } });
 ```
 
-なお access 関連は `better-auth/plugins` ではなく `better-auth/plugins/access` から import します。プラグイン全体を経由するとバンドルサイズが大きくなるためです。
-
 ## その他の注意点
 
 ロールは単一のカラムに格納される。`member.role` は `text` 型です。複数ロールを付与した場合もカンマ区切りで同じカラムに格納されます。そのため `role = 'admin'` のような完全一致の条件では、複数ロールを持つ行が該当しなくなります。
