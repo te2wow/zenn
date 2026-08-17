@@ -292,7 +292,7 @@ const res = await authClient.organization.hasPermission({
 }
 ```
 
-プラグインが持つテーブルへの操作は、各エンドポイントがサーバ側で権限を確認しています。一方、`project` のようにアプリ側で追加したリソースについては、サーバ側で `auth.api.hasPermission` を呼んで判定するのがアプリの責任です。クライアントの `hasPermission` の結果だけを根拠に独自 API の認可を省かないようにしてください。
+プラグインが持つテーブルへの操作は、各エンドポイントがサーバ側で権限を確認しています。一方、`project` のようにアプリ側で追加したリソースについては、サーバ側で `auth.api.hasPermission` を呼んで判定するのがアプリの責任です。
 
 ### 独自の権限を追加するときは defaultStatements をマージする
 
