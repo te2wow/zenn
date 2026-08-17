@@ -26,9 +26,9 @@ SaaS を作っていると、ほぼ必ず「組織」という概念が必要に
 - owner / admin / member のような役割ごとに、操作できることを分ける
 - 上記すべてについて「他人の組織のデータを触れないこと」を保証する
 
-どれも難しくはないのですが、認可の抜けが致命傷になるのが厄介なところです。招待 ID を総当たりされたら他人の組織に入れてしまう、といった事故は起こりがちだと思います。
-
 organization plugin はこの領域をまとめて引き受けてくれます。逆に言うと、課金・プラン管理・組織ごとのリソース分離までは面倒を見てくれません。プラグインが持つのはあくまで「組織・メンバー・招待・権限」の 4 つです。
+
+この薄さが better-auth らしいところだと思います。組織まわりで必ず要る土台だけを用意して、その先のドメイン固有の判断はアプリ側に委ねる、という切り分けになっています。テーブルもプラグインを有効にした分しか増えませんし、権限モデルも既定のロールをそのまま使うことも、独自に定義し直すこともできます。フルスタックな SaaS フレームワークを導入して要らない機能ごと抱えるのとは、この点が違います。
 
 ## 最小構成
 
@@ -113,7 +113,7 @@ export const session = sqliteTable("session", {
 });
 ```
 
-「いまどの組織を見ているか」をセッションが持つ設計です。この列の扱いが後述するハマりどころになります。
+「いまどの組織を見ているか」をセッションが持つ設計です。
 
 なお `teams` を有効にしていない場合、`team` / `teamMember` テーブルと `session.activeTeamId` は生成されません。必要なテーブルだけが増える作りになっています。
 
@@ -191,68 +191,6 @@ organization({
 
 `before` 系の hook で例外を投げると、その操作自体が実行されません。「特定ドメインのメールアドレスの人しか組織を作れない」といった制約はここで表現できます。
 
-## activeOrganizationId というハマりどころ
-
-organization plugin で最初に引っかかるのはここだと思います。
-
-サインインした直後、`session.activeOrganizationId` は `null` です。ユーザーが 1 つしか組織に所属していなくても、自動では入りません。
-
-実際、デモアプリでサインアップ直後のセッションを見ると `null` になっています。
-
-```
-activeOrganizationId = None
-```
-
-一方で、`createOrganization` を実行した直後は、作った組織が自動的にアクティブになります。この非対称性が混乱のもとです。整理すると次のようになります。
-
-| きっかけ | `activeOrganizationId` |
-| --- | --- |
-| サインイン | `null` のまま |
-| `createOrganization` | 作った組織が入る |
-| `setActive` | 指定した組織が入る |
-
-したがって、サインイン後に組織を選ばせる画面を作るか、セッション作成時に自前で埋めるかのどちらかが必要です。後者は `databaseHooks` で書けます。
-
-```typescript
-export const auth = betterAuth({
-  databaseHooks: {
-    session: {
-      create: {
-        before: async (session) => {
-          const firstMembership = await db.query.member.findFirst({
-            where: (m, { eq }) => eq(m.userId, session.userId),
-          });
-          return {
-            data: {
-              ...session,
-              activeOrganizationId: firstMembership?.organizationId ?? null,
-            },
-          };
-        },
-      },
-    },
-  },
-});
-```
-
-これで「ログインしたら前回の組織に入っている」という一般的な挙動になります。
-
-### activeOrganizationId を直接書き換えない
-
-この列はセッションに生えているので、汎用のセッション更新 API から書けてしまいそうに見えます。しかし書き換えは `setActive` 経由に限るべきです。`setActive` は「そのユーザーがその組織のメンバーであること」を検証しますが、汎用の更新経路を通すとその検証が飛びます。自分が所属していない組織の ID を入れられたら、アクセス制御の前提が崩れます。
-
-この点は better-auth 側でも、プラグインが持つセッション列を入力不可として扱う修正が入っています（[PR #9965](https://github.com/better-auth/better-auth/pull/9965)）。使う側としても、素直に `setActive` を呼ぶのが安全です。
-
-```typescript
-await authClient.organization.setActive({ organizationId: org.id });
-```
-
-### 型に出てこないことがある
-
-`typeof auth.$infer.Session.session` から型を引いたときに `activeOrganizationId` が出てこない、という報告が複数上がっています（[#4222](https://github.com/better-auth/better-auth/issues/4222)、[#5909](https://github.com/better-auth/better-auth/issues/5909)）。特に `customSession` プラグインと併用したときにプラグインの適用順で消えることがあるようです（[#3233](https://github.com/better-auth/better-auth/issues/3233)）。
-
-型が出ないからといって `as` でねじ伏せると、本当に値が入っていないケースを踏んだときに気づけなくなります。実際の値が入っているかどうかを、まず DB とレスポンスで確認するのが先だと思います。
-
 ## 招待フローで DB が動く順番
 
 招待は「招待を作る」と「招待を受ける」の 2 段階で、それぞれ別のタイミングで DB が動きます。
@@ -286,7 +224,7 @@ sqlite> select id, status from invitation;
 SovbVKKXBfXzwE3z255LZoSRmDbeWALp  accepted
 ```
 
-ここで注意したいのは、承諾しても `invitation` の行は消えず、`status` が `accepted` に変わるだけという点です。招待の履歴が残るのは監査上ありがたいのですが、招待の一覧をそのまま画面に出すと処理済みのものが混ざります。表示するときは `status` で絞る必要があります。
+ここで注意したいのは、承諾しても `invitation` の行は消えず、`status` が `accepted` に変わるだけという点です。招待の履歴が残るのは監査上ありがたいところです。
 
 ### メール送信は自前で用意する
 
@@ -306,10 +244,6 @@ organization({
 ```
 
 招待リンクを受け取る側のページは自分で作ります。デモアプリでは `/accept-invitation/[id]` で `acceptInvitation` を呼ぶだけの画面を置いています。
-
-### 招待 ID の扱い
-
-クライアントから `listUserInvitations` を呼ぶ場合、セッションユーザーのメールアドレスが確認済みである必要があります。これは招待 ID の総当たりを防ぐための制約です。デモではメール確認を無効にしているので、この経路は使わず、招待 ID を直接指定する形にしています。本番でメール確認を挟まない構成にすると、この防御が効かなくなる点は意識しておいたほうがよいと思います。
 
 ## 権限モデル
 
@@ -352,7 +286,7 @@ const res = await authClient.organization.hasPermission({
 }
 ```
 
-`hasPermission` は UI の出し分けのためのもので、防御そのものはサーバ側のエンドポイントが担当しているという構造です。ボタンを隠すだけの実装でも穴は空きませんが、逆にクライアントの判定結果を信用して独自 API の認可を省くと危険です。
+`hasPermission` は UI の出し分けのためのもので、防御そのものはサーバ側のエンドポイントが担当しているという構造です。
 
 ### 独自の権限を足すときは defaultStatements を混ぜる
 
@@ -409,10 +343,6 @@ organizationClient({ ac, roles: { owner, admin, member } });
 
 なお `better-auth/plugins/access` から import することが推奨されています。`better-auth/plugins` 全体を経由するとバンドルサイズが膨らみます。
 
-### checkRolePermission は同期的な判定である
-
-クライアントには、サーバに問い合わせずロールから判定する `checkRolePermission` もあります。UI の出し分けには便利ですが、同期的に動く都合上、Dynamic Access Control で実行時に作った動的ロールは考慮されません。動的ロールを使うなら、判定はサーバ側の `hasPermission` に寄せる必要があります。
-
 ## その他の注意点
 
 ロールは文字列 1 列に入る。`member.role` は `text` です。複数ロールを持たせるとカンマ区切りで 1 つの列に入ります。`role = 'admin'` のような素朴な SQL は、複数ロールを使い始めた瞬間に壊れます。
@@ -423,27 +353,14 @@ organizationClient({ ac, roles: { owner, admin, member } });
 
 サーバから `createOrganization` を呼ぶときは `userId` とセッションを併用できない。サーバ側でセッションヘッダを渡さずに呼ぶ場合は `userId` を指定します。両方同時には使えません。
 
-リクエストには Origin が必要。curl で API を直接叩いて検証しようとすると、`MISSING_OR_NULL_ORIGIN` で弾かれます。CSRF 対策なので、動作確認のときは `Origin` ヘッダを付けてください。
-
-```bash
-curl -X POST http://localhost:3000/api/auth/organization/create \
-  -H 'Content-Type: application/json' \
-  -H 'Origin: http://localhost:3000' \
-  -d '{"name":"Acme Inc","slug":"acme-inc"}'
-```
-
 ## まとめ
 
 organization plugin が引き受けてくれるのは「組織・メンバー・招待・権限」の 4 つで、テーブル設計から認可の実施までが込みになっています。特に、組織作成時に owner の `member` 行まで面倒を見てくれる点と、権限チェックがサーバ側のエンドポイントで実際に効いている点が、自前実装と比べたときの価値だと思います。
 
-一方で `activeOrganizationId` は自動では埋まらないので、セッション作成時の hook か組織選択画面のどちらかを自分で用意する必要があります。ここだけは最初に必ず踏むところなので、先に決めておくと楽です。
+必要なテーブルだけが増え、その先の判断はアプリ側に残るという薄さも、扱いやすいところだと思います。
 
 ## 参考
 
 - [Organization | Better Auth](https://better-auth.com/docs/plugins/organization)
 - [organization.mdx（ドキュメントのソース）](https://github.com/better-auth/better-auth/blob/main/docs/content/docs/plugins/organization.mdx)
-- [fix(auth): mark plugin-owned session fields as non-input · PR #9965](https://github.com/better-auth/better-auth/pull/9965)
-- [activeOrganizationId still not present in session inference · Issue #4222](https://github.com/better-auth/better-auth/issues/4222)
-- [activeOrganizationId doesn't show up in session object · Issue #5909](https://github.com/better-auth/better-auth/issues/5909)
-- [activeOrganizationId property lost when using customSession · Issue #3233](https://github.com/better-auth/better-auth/issues/3233)
 - [デモアプリ: te2wow/better-auth-org-demo](https://github.com/te2wow/better-auth-org-demo)
