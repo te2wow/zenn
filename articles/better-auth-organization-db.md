@@ -167,10 +167,6 @@ organization_id = XPak6XwEiFkbZU3m5QYmuYmhgw4TpELE
      created_at = 1786922963185
 ```
 
-`created_at` は両者で一致していますが、これは同じミリ秒内に処理されたためで、値を共有しているわけではありません。実装上は、`createOrganization` エンドポイントが組織を INSERT したあと、続けて作成者の `member` を INSERT しています。
-
-https://github.com/better-auth/better-auth/blob/07a646ea190167370fbbb60a0fa2c3be3bec5522/packages/better-auth/src/plugins/organization/routes/crud-org.ts#L179-L212
-
 作成者のロールは `creatorRole` で変えられます。既定は `owner` です。
 
 ```typescript
