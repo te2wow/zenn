@@ -14,7 +14,7 @@ SaaS を作っていると、「組織」という概念が必要になること
 
 - デモアプリ: https://github.com/te2wow/better-auth-org-demo
 
-検証に使ったバージョンは `better-auth@1.6.25` / `next@16.2.12` / `drizzle-orm@0.45.2` です。データベースは SQLite（better-sqlite3）を使っています。2026-08 時点の最新は 1.6.29 ですが、1.6.26 から 1.6.29 の間に organization plugin のスキーマや API に変更はありません。
+検証に使ったバージョンは `better-auth@1.6.25` / `next@16.2.12` / `drizzle-orm@0.45.2` です。データベースは SQLite（better-sqlite3）を使っています。
 
 ## マルチテナントを自前で実装する場合の作業範囲
 
