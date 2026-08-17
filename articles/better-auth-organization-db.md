@@ -102,7 +102,11 @@ export const invitation = sqliteTable("invitation", {
 
 （1）ユーザーと組織の関連は `member` テーブルが保持する。ロールも `member` のカラムとして持ちます。`(userId, organizationId)` の組に対してロールが決まるので、「同じユーザーが組織 A では owner、組織 B では member」という状態を表現できます。
 
-（2）外部キーが `onDelete: "cascade"` になっている。ただし、組織を削除したときに `member` と `invitation` が消えるのは、この外部キー制約が主因ではありません。プラグインの [`deleteOrganization`](https://github.com/better-auth/better-auth/blob/07a646ea190167370fbbb60a0fa2c3be3bec5522/packages/better-auth/src/plugins/organization/adapter.ts#L447-L479) が `member`、`invitation`、`organization` の順に明示的に DELETE を発行しています。外部キーの cascade は、外部キー制約が有効な DB では二重の保険として働く、という位置づけです。いずれにせよ組織削除は破壊的なので、論理削除にしたい場合は `disableOrganizationDeletion: true` で削除自体を塞いで、独自の運用を組む必要があります。
+（2）外部キーが `onDelete: "cascade"` になっている。ただし、組織を削除したときに `member` と `invitation` が消えるのは、この外部キー制約が主因ではありません。プラグインの `deleteOrganization` が `member`、`invitation`、`organization` の順に明示的に DELETE を発行しています。
+
+https://github.com/better-auth/better-auth/blob/07a646ea190167370fbbb60a0fa2c3be3bec5522/packages/better-auth/src/plugins/organization/adapter.ts#L447-L479
+
+外部キーの cascade は、外部キー制約が有効な DB では二重の保険として働く、という位置づけです。いずれにせよ組織削除は破壊的なので、論理削除にしたい場合は `disableOrganizationDeletion: true` で削除自体を塞いで、独自の運用を組む必要があります。
 
 （3）`session` テーブルにカラムが追加される。既存の `session` テーブルに `activeOrganizationId` が追加されます。
 
@@ -163,7 +167,9 @@ organization_id = XPak6XwEiFkbZU3m5QYmuYmhgw4TpELE
      created_at = 1786922963185
 ```
 
-`created_at` は両者で一致していますが、これは同じミリ秒内に処理されたためで、値を共有しているわけではありません。実装上は、`createOrganization` エンドポイントが[組織を INSERT](https://github.com/better-auth/better-auth/blob/07a646ea190167370fbbb60a0fa2c3be3bec5522/packages/better-auth/src/plugins/organization/routes/crud-org.ts#L179) したあと、続けて[作成者の `member` を INSERT](https://github.com/better-auth/better-auth/blob/07a646ea190167370fbbb60a0fa2c3be3bec5522/packages/better-auth/src/plugins/organization/routes/crud-org.ts#L212) しています。
+`created_at` は両者で一致していますが、これは同じミリ秒内に処理されたためで、値を共有しているわけではありません。実装上は、`createOrganization` エンドポイントが組織を INSERT したあと、続けて作成者の `member` を INSERT しています。
+
+https://github.com/better-auth/better-auth/blob/07a646ea190167370fbbb60a0fa2c3be3bec5522/packages/better-auth/src/plugins/organization/routes/crud-org.ts#L179-L212
 
 作成者のロールは `creatorRole` で変えられます。[既定は `owner`](https://github.com/better-auth/better-auth/blob/07a646ea190167370fbbb60a0fa2c3be3bec5522/packages/better-auth/src/plugins/organization/routes/crud-org.ts#L193) です。
 
@@ -249,13 +255,15 @@ organization({
 
 ## 権限モデル
 
-既定のロールは owner / admin / member の 3 つで、権限は次のように分かれています（定義は [access/statement.ts](https://github.com/better-auth/better-auth/blob/07a646ea190167370fbbb60a0fa2c3be3bec5522/packages/better-auth/src/plugins/organization/access/statement.ts#L3-L41)）。
+既定のロールは owner / admin / member の 3 つで、権限は次のように分かれています。
 
 | ロール | できること |
 | --- | --- |
 | owner | 組織の削除を含むすべての操作 |
 | admin | 組織の削除と owner の変更を除く操作 |
 | member | 既定では参照のみ。作成・更新・削除の権限を持たない |
+
+https://github.com/better-auth/better-auth/blob/07a646ea190167370fbbb60a0fa2c3be3bec5522/packages/better-auth/src/plugins/organization/access/statement.ts#L3-L41
 
 member ロールのユーザーで操作した場合の挙動が次のとおりです。
 
