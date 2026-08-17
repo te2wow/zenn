@@ -261,6 +261,8 @@ organization({
 
 https://github.com/better-auth/better-auth/blob/07a646ea190167370fbbb60a0fa2c3be3bec5522/packages/better-auth/src/plugins/organization/access/statement.ts#L3-L41
 
+ロールは単一のカラムに格納され、`member.role` は `text` 型です。複数ロールを付与した場合もカンマ区切りで同じカラムに格納されます。そのため `role = 'admin'` のような完全一致の条件では、複数ロールを持つ行が該当しなくなります。
+
 member ロールのユーザーで操作した場合の挙動が次のとおりです。
 
 ![member ロールのユーザーでは hasPermission が success: false を返し、組織削除も 403 で拒否される](/images/better-auth-organization-db/03-permission.gif)
@@ -346,16 +348,6 @@ organization({ ac, roles: { owner, admin, member } });
 // クライアント
 organizationClient({ ac, roles: { owner, admin, member } });
 ```
-
-## その他の注意点
-
-ロールは単一のカラムに格納され、`member.role` は `text` 型です。複数ロールを付与した場合もカンマ区切りで同じカラムに格納されます。そのため `role = 'admin'` のような完全一致の条件では、複数ロールを持つ行が該当しなくなります。
-
-メンバー数と保留中の招待数には既定の上限があり、`membershipLimit`（組織あたりのメンバー数）の既定は 100、`invitationLimit` の既定も 100 です。`invitationLimit` はドキュメント上「ユーザーあたりの招待数」と説明されていますが、1.6.25 の実装では組織あたりの `pending` な招待数を数えています。大きな組織を扱うなら明示的に引き上げる必要があります。なお `membershipLimit` は `listMembers` の既定の取得件数も兼ねています。ユーザーごとの組織数は `organizationLimit` で制限できますが、こちらは既定では無制限です。
-
-`slug` には unique 制約が付き、テーブル全体で一意になるため、ユーザーが自由に入力する場合は `checkSlug` で事前確認したうえで、それでも競合したときの一意制約違反をハンドリングする必要があります。事前確認と INSERT の間に別のリクエストが割り込む可能性があるためです。デモでは組織名から機械的に生成しているだけなので、実運用ではもう少し丁寧に扱う必要があります。
-
-サーバから `createOrganization` を呼ぶときの `userId` はセッションが無いときだけ使われ、セッションヘッダを渡さずに呼ぶ場合は `userId` で対象ユーザーを指定します。セッションがある場合はセッションのユーザーが優先され、`userId` はエラーにならず無視されます。
 
 ## まとめ
 
