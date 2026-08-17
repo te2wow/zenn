@@ -358,4 +358,5 @@ organization plugin が解決するのは、「組織・メンバー・招待・
 ## 参考
 
 - [Organization | Better Auth](https://better-auth.com/docs/plugins/organization)
-- https://github.com/te2wow/better-auth-org-demo
+- https://github.com/better-auth/better-auth
+- [デモアプリ: te2wow/better-auth-org-demo](https://github.com/te2wow/better-auth-org-demo)
