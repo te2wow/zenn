@@ -6,7 +6,7 @@ topics: ["betterauth", "nextjs", "typescript", "auth", "drizzle"]
 published: false
 ---
 
-SaaS を作っていると、ほぼ必ず「組織」という概念が必要になります。ユーザーが個人として存在するだけでなく、会社やチームに属して、その中で権限が分かれて、他の人を招待できる、というやつです。
+SaaS を作っていると、「組織」という概念が必要になることがあります。ユーザーが個人として存在するだけでなく、会社やチームに属して、その中で権限が分かれて、他の人を招待できる、という機能です。
 
 [better-auth](https://better-auth.com) の [organization plugin](https://better-auth.com/docs/plugins/organization) は、この一式をプラグイン 1 つで用意してくれます。この記事では、組織を作ったときにどのテーブルへ何が書き込まれるのかを中心に、注意点をまとめます。
 
@@ -14,7 +14,7 @@ SaaS を作っていると、ほぼ必ず「組織」という概念が必要に
 
 - デモアプリ: https://github.com/te2wow/better-auth-org-demo
 
-検証に使ったバージョンは `better-auth@1.6.25` / `next@16.2.12` / `drizzle-orm@0.45.2` です。データベースは SQLite を使っています。
+検証に使ったバージョンは `better-auth@1.6.25` / `next@16.2.12` / `drizzle-orm@0.45.2` です。データベースは SQLite（better-sqlite3）を使っています。2026-08 時点の最新は 1.6.29 ですが、1.6.26 から 1.6.29 の間に organization plugin のスキーマや API に変更はありません。
 
 ## マルチテナントを自前で実装する場合の作業範囲
 
@@ -24,7 +24,7 @@ SaaS を作っていると、ほぼ必ず「組織」という概念が必要に
 - 「いま操作している組織はどれか」をセッションに持たせる
 - 招待メールを送り、招待の有効期限を管理し、承諾時にメンバーへ変換する
 - owner / admin / member のような役割ごとに、操作できることを分ける
-- 上記すべてについて「他人の組織のデータを触れないこと」を保証する
+- 上記のテーブルすべてについて、他の組織のデータへアクセスできないようにする
 
 organization plugin はこの領域をまとめて引き受けます。逆に言うと、課金・プラン管理・組織ごとのリソース分離は対象外です。プラグインが扱うのは「組織・メンバー・招待・権限」の 4 つです。
 
@@ -54,15 +54,17 @@ export const authClient = createAuthClient({
 });
 ```
 
-この状態で `@better-auth/cli generate` を実行すると、必要なテーブル定義が生成されます。
+この状態で CLI の `generate` を実行すると、必要なテーブル定義が生成されます。CLI のパッケージ名は `auth` です。`@better-auth/cli` という名前のパッケージも npm にありますが、1.4 系で更新が止まっているので使いません。
 
 ```bash
-npx @better-auth/cli generate --config lib/auth.ts --output db/schema.ts
+npx auth@latest generate --config lib/auth.ts --output db/schema.ts
 ```
+
+1 点だけ引っかかりやすいのが、この CLI は `tsconfig.json` の `paths`（`@/db` のような alias）を解決しないことです。`lib/auth.ts` の中で `@/db` のように import していると `Cannot find module '@/db'` で止まります。auth 設定ファイルの中では相対パスで import するのが無難です。デモアプリもそうしています。
 
 ## 生成されるスキーマを読む
 
-生成された Drizzle スキーマから、organization plugin が追加する部分だけを抜き出します。
+生成された Drizzle スキーマから、organization plugin が追加する部分だけを抜き出します。`member` と `invitation` に付くインデックス定義と、`invitation.createdAt` の SQL デフォルト式は省略しています。
 
 ```typescript
 export const organization = sqliteTable("organization", {
@@ -102,7 +104,7 @@ export const invitation = sqliteTable("invitation", {
 
 （1）ユーザーと組織の関連は `member` テーブルが保持する。ロールも `member` のカラムとして持ちます。`(userId, organizationId)` の組に対してロールが決まるので、「同じユーザーが組織 A では owner、組織 B では member」という状態を表現できます。
 
-（2）外部キーが `onDelete: "cascade"` になっている。組織を削除すると、その組織の `member` と `invitation` は外部キー制約によって連鎖的に DELETE されます。アプリ側で消し漏らす心配はない代わりに、組織削除は思っているより破壊的です。論理削除にしたい場合は `disableOrganizationDeletion: true` で削除自体を塞いで、独自の運用を組む必要があります。
+（2）外部キーが `onDelete: "cascade"` になっている。ただし、組織を削除したときに `member` と `invitation` が消えるのは、この外部キー制約が主因ではありません。プラグインの `deleteOrganization` が `member`、`invitation`、`organization` の順に明示的に DELETE を発行しています。外部キーの cascade は、外部キー制約が有効な DB では二重の保険として働く、という位置づけです。いずれにせよ組織削除は破壊的なので、論理削除にしたい場合は `disableOrganizationDeletion: true` で削除自体を塞いで、独自の運用を組む必要があります。
 
 （3）`session` テーブルにカラムが追加される。既存の `session` テーブルに `activeOrganizationId` が追加されます。
 
@@ -163,7 +165,7 @@ organization_id = XPak6XwEiFkbZU3m5QYmuYmhgw4TpELE
      created_at = 1786922963185
 ```
 
-`created_at` が両者で完全に一致していることに注目してください。組織の作成と作成者の owner 登録が、同一のタイムスタンプを共有する一連の処理として実行されていることが分かります。
+`created_at` は両者で一致していますが、これは同じミリ秒内に処理されたためで、値を共有しているわけではありません。実装上は、`createOrganization` エンドポイントが組織を INSERT したあと、続けて作成者の `member` を INSERT しています。この 2 つの INSERT はトランザクションで束ねられていないので、`member` の作成が失敗した場合に組織だけが残る可能性はあります。
 
 つまり作成者の `member` 行をアプリ側で INSERT する必要はありません。「組織を作ったあとに、作成者を管理者として登録する」という処理を自前で書く必要はないということです。
 
@@ -177,7 +179,7 @@ organization({
 
 ### 作成直後に処理を挟むときは hook を使う
 
-「組織を作ったら初期データを投入したい」という要件はよくあります。その場合、API のレスポンスを受け取ったあとにアプリ側で処理を書くのではなく、`organizationHooks` を使うほうが確実です。呼び出し元がクライアントでもサーバでも、組織の作成処理を経由する限り実行されるためです。
+「組織を作ったら初期データを投入したい」という要件はよくあります。その場合、API のレスポンスを受け取ったあとにアプリ側で処理を書くより、`organizationHooks` に寄せるほうが漏れにくいと思います。呼び出し元がクライアントでもサーバでも、組織の作成処理を経由する限り実行されるためです。
 
 ```typescript
 organization({
@@ -189,7 +191,9 @@ organization({
 });
 ```
 
-`before` 系の hook で例外を投げると、その操作は実行されません。「特定ドメインのメールアドレスの人しか組織を作れない」といった制約はここで表現できます。
+`setupDefaultResources` は説明用の仮の関数です。デモアプリではサーバログへの出力に置き換えています。
+
+`beforeCreateOrganization` で例外を投げると、組織の INSERT 自体が実行されません。「特定ドメインのメールアドレスの人しか組織を作れない」といった制約はここで表現できます。一方 `beforeAddMember` は組織の INSERT が終わったあとに呼ばれるので、そこで例外を投げると組織だけが残ります。制約を入れる位置には注意が必要です。
 
 ## 招待フローでの書き込み順序
 
@@ -211,9 +215,9 @@ organization({
 }
 ```
 
-`expiresAt` は既定で 48 時間後です。`invitationExpiresIn` で秒単位で変更できます。
+`expiresAt` は既定で 48 時間後です（レスポンスの `createdAt` は省略しています）。`invitationExpiresIn` で秒単位で変更できます。
 
-（2）`acceptInvitation` を呼ぶと `member` に 1 行 INSERT され、`invitation` の `status` が UPDATE される。
+（2）`acceptInvitation` を呼ぶと、まず `invitation` の `status` が `accepted` に UPDATE され、続けて `member` に 1 行 INSERT される。あわせてセッションの `activeOrganizationId` もその組織に更新されます。
 
 ```
 sqlite> select id, user_id, role from member;
@@ -224,7 +228,7 @@ sqlite> select id, status from invitation;
 SovbVKKXBfXzwE3z255LZoSRmDbeWALp  accepted
 ```
 
-ここで注意したいのは、承諾しても `invitation` の行は DELETE されず、`status` が `accepted` に UPDATE されるだけという点です。招待の履歴が残るのは監査上ありがたいところです。
+ここで注意したいのは、承諾しても `invitation` の行は DELETE されず、`status` が `accepted` に UPDATE されるだけという点です。履歴が残るのは追跡のうえでは便利だと思いますが、行は自動では消えず、期限切れの招待も `pending` のまま残ります。メールアドレスを含むテーブルなので、保持期間はアプリ側で決める必要があります。
 
 ### メール送信は自前で用意する
 
@@ -242,6 +246,8 @@ organization({
   },
 });
 ```
+
+`sendMail` は説明用の仮の関数です。デモアプリでは招待リンクをサーバログに出力するだけにしています。
 
 招待リンクを受け取る側のページもアプリ側で用意します。デモアプリでは `/accept-invitation/[id]` で `acceptInvitation` を呼ぶだけの画面を置いています。
 
@@ -265,7 +271,7 @@ member ロールのユーザーで操作した場合の挙動が次のとおり�
 const res = await authClient.organization.hasPermission({
   permissions: { organization: ["delete"] },
 });
-// member ロールなら { error: null, success: false }
+// member ロールなら res.data は { error: null, success: false }
 ```
 
 そして、判定を無視して実際に削除を叩いても、サーバ側で止まります。
@@ -286,7 +292,7 @@ const res = await authClient.organization.hasPermission({
 }
 ```
 
-`hasPermission` は UI の出し分けに使うためのもので、実際のアクセス制御は各エンドポイントが行っています。
+プラグインが持つテーブルへの操作は、各エンドポイントがサーバ側で権限を確認しています。一方、`project` のようにアプリ側で追加したリソースについては、サーバ側で `auth.api.hasPermission` を呼んで判定するのがアプリの責任です。クライアントの `hasPermission` の結果だけを根拠に独自 API の認可を省かないようにしてください。
 
 ### 独自の権限を追加するときは defaultStatements をマージする
 
@@ -347,11 +353,11 @@ organizationClient({ ac, roles: { owner, admin, member } });
 
 ロールは単一のカラムに格納される。`member.role` は `text` 型です。複数ロールを付与した場合もカンマ区切りで同じカラムに格納されます。そのため `role = 'admin'` のような完全一致の条件では、複数ロールを持つ行が該当しなくなります。
 
-組織の作成数・メンバー数には既定の上限がある。`membershipLimit` の既定は 100、`invitationLimit` の既定も 100 です。大きな組織を扱うなら明示的に引き上げる必要があります。`organizationLimit` でユーザーごとの組織数も制限できます。
+メンバー数と保留中の招待数には既定の上限がある。`membershipLimit`（組織あたりのメンバー数）の既定は 100、`invitationLimit`（組織あたりの `pending` な招待数）の既定も 100 です。大きな組織を扱うなら明示的に引き上げる必要があります。なお `membershipLimit` は `listMembers` の既定の取得件数も兼ねています。ユーザーごとの組織数は `organizationLimit` で制限できますが、こちらは既定では無制限です。
 
-`slug` には unique 制約が付く。テーブル全体で一意になるため、ユーザーが自由に入力する場合は `checkSlug` で事前確認するか、一意制約違反をハンドリングして画面に出す必要があります。デモでは組織名から機械的に生成しているだけなので、実運用ではもう少し丁寧に扱う必要があります。
+`slug` には unique 制約が付く。テーブル全体で一意になるため、ユーザーが自由に入力する場合は `checkSlug` で事前確認したうえで、それでも競合したときの一意制約違反をハンドリングする必要があります。事前確認と INSERT の間に別のリクエストが割り込む可能性があるためです。デモでは組織名から機械的に生成しているだけなので、実運用ではもう少し丁寧に扱う必要があります。
 
-サーバから `createOrganization` を呼ぶときは `userId` とセッションを併用できない。サーバ側でセッションヘッダを渡さずに呼ぶ場合は `userId` を指定します。両方同時には使えません。
+サーバから `createOrganization` を呼ぶときの `userId` はセッションが無いときだけ使われる。セッションヘッダを渡さずに呼ぶ場合は `userId` で対象ユーザーを指定します。セッションがある場合はセッションのユーザーが優先され、`userId` はエラーにならず無視されます。
 
 ## まとめ
 
