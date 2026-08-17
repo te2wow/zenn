@@ -60,8 +60,6 @@ export const authClient = createAuthClient({
 npx auth@latest generate --config lib/auth.ts --output db/schema.ts
 ```
 
-1 点だけ引っかかりやすいのが、この CLI は `tsconfig.json` の `paths`（`@/db` のような alias）を解決しないことです。`lib/auth.ts` の中で `@/db` のように import していると `Cannot find module '@/db'` で止まります。auth 設定ファイルの中では相対パスで import するのが無難です。デモアプリもそうしています。
-
 ## 生成されるスキーマを読む
 
 生成された Drizzle スキーマから、organization plugin が追加する部分だけを抜き出します。`member` と `invitation` に付くインデックス定義と、`invitation.createdAt` の SQL デフォルト式は省略しています。
