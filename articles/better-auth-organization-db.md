@@ -165,8 +165,6 @@ organization_id = XPak6XwEiFkbZU3m5QYmuYmhgw4TpELE
 
 `created_at` は両者で一致していますが、これは同じミリ秒内に処理されたためで、値を共有しているわけではありません。実装上は、`createOrganization` エンドポイントが組織を INSERT したあと、続けて作成者の `member` を INSERT しています。
 
-つまり作成者の `member` 行をアプリ側で INSERT する必要はありません。「組織を作ったあとに、作成者を管理者として登録する」という処理を自前で書く必要はないということです。
-
 作成者のロールは `creatorRole` で変えられます。既定は `owner` です。
 
 ```typescript
