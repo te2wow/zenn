@@ -119,7 +119,7 @@ export const session = sqliteTable("session", {
 
 選択中の組織をセッションの状態として保持する設計です。
 
-なお `teams` を有効にしていない場合、`team` / `teamMember` テーブル、`session.activeTeamId`、`invitation.teamId` は生成されません（[organization.ts](https://github.com/better-auth/better-auth/blob/07a646ea190167370fbbb60a0fa2c3be3bec5522/packages/better-auth/src/plugins/organization/organization.ts#L941) の `teamSupport` による分岐）。必要なテーブルだけが増える作りになっています。
+なお `teams` を有効にしていない場合、`team` / `teamMember` テーブル、`session.activeTeamId`、`invitation.teamId` は生成されません。必要なテーブルだけが増える作りになっています。
 
 ## 組織を作ると何が INSERT されるか
 
@@ -171,7 +171,7 @@ organization_id = XPak6XwEiFkbZU3m5QYmuYmhgw4TpELE
 
 https://github.com/better-auth/better-auth/blob/07a646ea190167370fbbb60a0fa2c3be3bec5522/packages/better-auth/src/plugins/organization/routes/crud-org.ts#L179-L212
 
-作成者のロールは `creatorRole` で変えられます。[既定は `owner`](https://github.com/better-auth/better-auth/blob/07a646ea190167370fbbb60a0fa2c3be3bec5522/packages/better-auth/src/plugins/organization/routes/crud-org.ts#L193) です。
+作成者のロールは `creatorRole` で変えられます。既定は `owner` です。
 
 ```typescript
 organization({
@@ -195,7 +195,7 @@ organization({
 
 `setupDefaultResources` は説明用の仮の関数です。デモアプリではサーバログへの出力に置き換えています。
 
-`beforeCreateOrganization` で例外を投げると、組織の INSERT 自体が実行されません。「特定ドメインのメールアドレスの人しか組織を作れない」といった制約はここで表現できます。一方 [`beforeAddMember`](https://github.com/better-auth/better-auth/blob/07a646ea190167370fbbb60a0fa2c3be3bec5522/packages/better-auth/src/plugins/organization/routes/crud-org.ts#L195-L212) は組織の INSERT が終わったあとに呼ばれるので、そこで例外を投げると組織だけが残ります。制約を入れる位置には注意が必要です。
+`beforeCreateOrganization` で例外を投げると、組織の INSERT 自体が実行されません。「特定ドメインのメールアドレスの人しか組織を作れない」といった制約はここで表現できます。一方 `beforeAddMember` は組織の INSERT が終わったあとに呼ばれるので、そこで例外を投げると組織だけが残ります。制約を入れる位置には注意が必要です。
 
 ## 招待フローでの書き込み順序
 
@@ -217,9 +217,9 @@ organization({
 }
 ```
 
-`expiresAt` は[既定で 48 時間後](https://github.com/better-auth/better-auth/blob/07a646ea190167370fbbb60a0fa2c3be3bec5522/packages/better-auth/src/plugins/organization/adapter.ts#L1040-L1042)です（レスポンスの `createdAt` は省略しています）。`invitationExpiresIn` で秒単位で変更できます。
+`expiresAt` は既定で 48 時間後です（レスポンスの `createdAt` は省略しています）。`invitationExpiresIn` で秒単位で変更できます。
 
-（2）`acceptInvitation` を呼ぶと、まず `invitation` の `status` が [`accepted` に UPDATE](https://github.com/better-auth/better-auth/blob/07a646ea190167370fbbb60a0fa2c3be3bec5522/packages/better-auth/src/plugins/organization/routes/crud-invites.ts#L744) され、続けて [`member` に 1 行 INSERT](https://github.com/better-auth/better-auth/blob/07a646ea190167370fbbb60a0fa2c3be3bec5522/packages/better-auth/src/plugins/organization/routes/crud-invites.ts#L825) される。あわせて[セッションの `activeOrganizationId` もその組織に更新](https://github.com/better-auth/better-auth/blob/07a646ea190167370fbbb60a0fa2c3be3bec5522/packages/better-auth/src/plugins/organization/routes/crud-invites.ts#L832)されます。
+（2）`acceptInvitation` を呼ぶと、まず `invitation` の `status` が `accepted` に UPDATE され、続けて `member` に 1 行 INSERT される。あわせてセッションの `activeOrganizationId` もその組織に更新されます。
 
 ```
 sqlite> select id, user_id, role from member;
@@ -230,11 +230,11 @@ sqlite> select id, status from invitation;
 SovbVKKXBfXzwE3z255LZoSRmDbeWALp  accepted
 ```
 
-ここで注意したいのは、承諾しても `invitation` の行は DELETE されず、`status` が `accepted` に UPDATE されるだけという点です。履歴が残るのは追跡のうえでは便利だと思いますが、行は自動では消えず、期限切れの招待も `pending` のまま残ります（期限は[読み取り時に `expiresAt` でフィルタ](https://github.com/better-auth/better-auth/blob/07a646ea190167370fbbb60a0fa2c3be3bec5522/packages/better-auth/src/plugins/organization/adapter.ts#L1100)されるだけで、`status` は書き換えられません）。メールアドレスを含むテーブルなので、保持期間はアプリ側で決める必要があります。
+ここで注意したいのは、承諾しても `invitation` の行は DELETE されず、`status` が `accepted` に UPDATE されるだけという点です。履歴が残るのは追跡のうえでは便利だと思いますが、行は自動では消えず、期限切れの招待も `pending` のまま残ります（期限は読み取り時に `expiresAt` でフィルタされるだけで、`status` は書き換えられません）。メールアドレスを含むテーブルなので、保持期間はアプリ側で決める必要があります。
 
 ### メール送信は自前で用意する
 
-`sendInvitationEmail` を設定しない場合、`invitation` の行は作成されますが[メールは送信されません](https://github.com/better-auth/better-auth/blob/07a646ea190167370fbbb60a0fa2c3be3bec5522/packages/better-auth/src/plugins/organization/routes/crud-invites.ts#L582)。プラグインが渡すのは招待 ID を含むデータまでで、送信処理はアプリ側で実装します。
+`sendInvitationEmail` を設定しない場合、`invitation` の行は作成されますがメールは送信されません。プラグインが渡すのは招待 ID を含むデータまでで、送信処理はアプリ側で実装します。
 
 ```typescript
 organization({
@@ -300,7 +300,7 @@ const res = await authClient.organization.hasPermission({
 
 ### 独自の権限を追加するときは defaultStatements をマージする
 
-`createAccessControl` で独自リソースを定義できます。このとき既定の statement をマージしないと、[organization / member / invitation / team / ac](https://github.com/better-auth/better-auth/blob/07a646ea190167370fbbb60a0fa2c3be3bec5522/packages/better-auth/src/plugins/organization/access/statement.ts#L3-L9) に対する既定の権限が定義から失われます。
+`createAccessControl` で独自リソースを定義できます。このとき既定の statement をマージしないと、organization / member / invitation / team / ac に対する既定の権限が定義から失われます。
 
 ```typescript
 import { createAccessControl } from "better-auth/plugins/access";
@@ -355,13 +355,13 @@ organizationClient({ ac, roles: { owner, admin, member } });
 
 ## その他の注意点
 
-ロールは単一のカラムに格納される。`member.role` は `text` 型です。複数ロールを付与した場合も[カンマ区切りで同じカラムに格納](https://github.com/better-auth/better-auth/blob/07a646ea190167370fbbb60a0fa2c3be3bec5522/packages/better-auth/src/plugins/organization/organization.ts#L117)されます。そのため `role = 'admin'` のような完全一致の条件では、複数ロールを持つ行が該当しなくなります。
+ロールは単一のカラムに格納される。`member.role` は `text` 型です。複数ロールを付与した場合もカンマ区切りで同じカラムに格納されます。そのため `role = 'admin'` のような完全一致の条件では、複数ロールを持つ行が該当しなくなります。
 
-メンバー数と保留中の招待数には既定の上限がある。`membershipLimit`（組織あたりのメンバー数）の[既定は 100](https://github.com/better-auth/better-auth/blob/07a646ea190167370fbbb60a0fa2c3be3bec5522/packages/better-auth/src/plugins/organization/adapter.ts#L195-L196)、`invitationLimit` の[既定も 100](https://github.com/better-auth/better-auth/blob/07a646ea190167370fbbb60a0fa2c3be3bec5522/packages/better-auth/src/plugins/organization/routes/crud-invites.ts#L442) です。`invitationLimit` はドキュメント上「ユーザーあたりの招待数」と説明されていますが、1.6.25 の実装では[組織あたりの `pending` な招待数](https://github.com/better-auth/better-auth/blob/07a646ea190167370fbbb60a0fa2c3be3bec5522/packages/better-auth/src/plugins/organization/routes/crud-invites.ts#L444-L448)を数えています。大きな組織を扱うなら明示的に引き上げる必要があります。なお `membershipLimit` は `listMembers` の既定の取得件数も兼ねています。ユーザーごとの組織数は `organizationLimit` で制限できますが、こちらは[既定では無制限](https://github.com/better-auth/better-auth/blob/07a646ea190167370fbbb60a0fa2c3be3bec5522/packages/better-auth/src/plugins/organization/routes/crud-org.ts#L136-L139)です。
+メンバー数と保留中の招待数には既定の上限がある。`membershipLimit`（組織あたりのメンバー数）の既定は 100、`invitationLimit` の既定も 100 です。`invitationLimit` はドキュメント上「ユーザーあたりの招待数」と説明されていますが、1.6.25 の実装では組織あたりの `pending` な招待数を数えています。大きな組織を扱うなら明示的に引き上げる必要があります。なお `membershipLimit` は `listMembers` の既定の取得件数も兼ねています。ユーザーごとの組織数は `organizationLimit` で制限できますが、こちらは既定では無制限です。
 
 `slug` には unique 制約が付く。テーブル全体で一意になるため、ユーザーが自由に入力する場合は `checkSlug` で事前確認したうえで、それでも競合したときの一意制約違反をハンドリングする必要があります。事前確認と INSERT の間に別のリクエストが割り込む可能性があるためです。デモでは組織名から機械的に生成しているだけなので、実運用ではもう少し丁寧に扱う必要があります。
 
-サーバから `createOrganization` を呼ぶときの `userId` はセッションが無いときだけ使われる。セッションヘッダを渡さずに呼ぶ場合は `userId` で対象ユーザーを指定します。セッションがある場合は[セッションのユーザーが優先](https://github.com/better-auth/better-auth/blob/07a646ea190167370fbbb60a0fa2c3be3bec5522/packages/better-auth/src/plugins/organization/routes/crud-org.ts#L106-L111)され、`userId` はエラーにならず無視されます。
+サーバから `createOrganization` を呼ぶときの `userId` はセッションが無いときだけ使われる。セッションヘッダを渡さずに呼ぶ場合は `userId` で対象ユーザーを指定します。セッションがある場合はセッションのユーザーが優先され、`userId` はエラーにならず無視されます。
 
 ## まとめ
 
