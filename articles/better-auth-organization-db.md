@@ -54,7 +54,7 @@ export const authClient = createAuthClient({
 });
 ```
 
-この状態で CLI の `generate` を実行すると、必要なテーブル定義が生成されます。CLI のパッケージ名は `auth` です。`@better-auth/cli` という名前のパッケージも npm にありますが、1.4 系で更新が止まっているので使いません。
+この状態で CLI の `generate` を実行すると、必要なテーブル定義が生成されます。
 
 ```bash
 npx auth@latest generate --config lib/auth.ts --output db/schema.ts
@@ -115,7 +115,7 @@ export const session = sqliteTable("session", {
 
 選択中の組織をセッションの状態として保持する設計です。
 
-なお `teams` を有効にしていない場合、`team` / `teamMember` テーブルと `session.activeTeamId` は生成されません。必要なテーブルだけが増える作りになっています。
+なお `teams` を有効にしていない場合、`team` / `teamMember` テーブル、`session.activeTeamId`、`invitation.teamId` は生成されません。必要なテーブルだけが増える作りになっています。
 
 ## 組織を作ると何が INSERT されるか
 
@@ -257,7 +257,7 @@ organization({
 | --- | --- |
 | owner | 組織の削除を含むすべての操作 |
 | admin | 組織の削除と owner の変更を除く操作 |
-| member | 既定では作成・更新・削除の権限を持たない |
+| member | 既定では参照のみ。作成・更新・削除の権限を持たない |
 
 member ロールのユーザーで操作した場合の挙動が次のとおりです。
 
@@ -294,7 +294,7 @@ const res = await authClient.organization.hasPermission({
 
 ### 独自の権限を追加するときは defaultStatements をマージする
 
-`createAccessControl` で独自リソースを定義できます。このとき既定の statement をマージしないと、organization / member / invitation に対する既定の権限が定義から失われます。
+`createAccessControl` で独自リソースを定義できます。このとき既定の statement をマージしないと、organization / member / invitation / team / ac に対する既定の権限が定義から失われます。
 
 ```typescript
 import { createAccessControl } from "better-auth/plugins/access";
@@ -351,7 +351,7 @@ organizationClient({ ac, roles: { owner, admin, member } });
 
 ロールは単一のカラムに格納される。`member.role` は `text` 型です。複数ロールを付与した場合もカンマ区切りで同じカラムに格納されます。そのため `role = 'admin'` のような完全一致の条件では、複数ロールを持つ行が該当しなくなります。
 
-メンバー数と保留中の招待数には既定の上限がある。`membershipLimit`（組織あたりのメンバー数）の既定は 100、`invitationLimit`（組織あたりの `pending` な招待数）の既定も 100 です。大きな組織を扱うなら明示的に引き上げる必要があります。なお `membershipLimit` は `listMembers` の既定の取得件数も兼ねています。ユーザーごとの組織数は `organizationLimit` で制限できますが、こちらは既定では無制限です。
+メンバー数と保留中の招待数には既定の上限がある。`membershipLimit`（組織あたりのメンバー数）の既定は 100、`invitationLimit` の既定も 100 です。`invitationLimit` はドキュメント上「ユーザーあたりの招待数」と説明されていますが、1.6.25 の実装では組織あたりの `pending` な招待数を数えています。大きな組織を扱うなら明示的に引き上げる必要があります。なお `membershipLimit` は `listMembers` の既定の取得件数も兼ねています。ユーザーごとの組織数は `organizationLimit` で制限できますが、こちらは既定では無制限です。
 
 `slug` には unique 制約が付く。テーブル全体で一意になるため、ユーザーが自由に入力する場合は `checkSlug` で事前確認したうえで、それでも競合したときの一意制約違反をハンドリングする必要があります。事前確認と INSERT の間に別のリクエストが割り込む可能性があるためです。デモでは組織名から機械的に生成しているだけなので、実運用ではもう少し丁寧に扱う必要があります。
 
