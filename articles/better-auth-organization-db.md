@@ -8,7 +8,7 @@ published: false
 
 SaaS を作っていると、「組織」という概念が必要になることがあります。ユーザーが個人として存在するだけでなく、会社やチームに属して、その中で権限が分かれて、他の人を招待できる、という機能です。
 
-[better-auth](https://better-auth.com) の [organization plugin](https://better-auth.com/docs/plugins/organization) は、この一式をプラグイン 1 つで用意してくれます。この記事では、このプラグインが何を解決するのかを、組織を作ったときにどのテーブルへ何が書き込まれるのかを中心に紹介します。
+[better-auth](https://better-auth.com) の [organization plugin](https://better-auth.com/docs/plugins/organization) は、この一式をプラグイン 1 つで用意してくれます。この記事では、このプラグインが何を解決するのか、組織を作ったときにどのテーブルへ何が書き込まれるのかを中心に紹介します。
 
 動作確認用のデモアプリを作ったので、そちらも合わせて参照してください。
 
